@@ -1,0 +1,12 @@
+VOID Token "void" found in line 1 column 1
+MAIN Token "main" found in line 1 column 6
+LPAREN Token "(" found in line 1 column 10
+RPAREN Token ")" found in line 1 column 11
+LBRACE Token "{" found in line 1 column 13
+PRINT Token "print" found in line 2 column 3
+LPAREN Token "(" found in line 2 column 8
+STRING_LIT Token ""hello"" (hello) found in line 2 column 9
+RPAREN Token ")" found in line 2 column 16
+SEMI Token ";" found in line 2 column 17
+RBRACE Token "}" found in line 3 column 1
+EOF Token "" found in line 4 column 1
