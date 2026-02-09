@@ -1,0 +1,41 @@
+// Arithmetic and operators: ABM with +, -, *, /, %, rand(), expressions
+agent Trader {
+    int x, y;
+    int price;
+    int quantity;
+    float cost;
+
+    update {
+        price = price * 2 - 1;
+        quantity = quantity / 2;
+        cost = cost + 0.5 * 2.0;
+        int tax = price % 10;
+        move(x + rand(-1, 1), y + rand(0, 2));
+        if (quantity * price > 100) {
+            quantity = quantity - 1;
+        }
+        if (cost - 1.0 <= 0.0) {
+            destroy(self);
+        }
+    }
+}
+
+world Market {
+    int width = 50;
+    int height = 50;
+
+    update {
+        // wrap-around style
+    }
+}
+
+void main() {
+    int a = 1 + 2 - 3;
+    int b = 4 * 5 / 2;
+    int c = 10 % 3;
+    float x = 0.5 * 2.0;
+    spawn Trader(rand(0, 50), rand(0, 50), 10, 20, 1.5) for 5;
+    repeat {
+        step();
+    } until (steps > 200);
+}

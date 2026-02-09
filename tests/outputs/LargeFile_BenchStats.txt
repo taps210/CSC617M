@@ -1,0 +1,7 @@
+# Benchmark statistics for tests/inputs/LargeFile.txt
+# Used by largeFile_correct_tokenCountMatchesRecorded() to verify scanner output.
+
+Tokens: 1000189
+File size (bytes): 3027780
+# Elapsed time varies per run; sample: ~61 ms
+# Full token dump: LargeFile_Output.txt (one line per token)

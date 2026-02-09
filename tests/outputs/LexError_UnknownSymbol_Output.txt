@@ -1,0 +1,2 @@
+Error found in line 1 column 1
+Unknown symbol "#"

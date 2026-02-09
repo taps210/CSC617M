@@ -46,6 +46,8 @@ public final class Scanner {
             Map.entry("step", TokenType.STEP),
             Map.entry("neighbors", TokenType.NEIGHBORS),
             Map.entry("rand", TokenType.RAND),
+            Map.entry("update", TokenType.UPDATE),
+            Map.entry("destroy", TokenType.DESTROY),
 
             Map.entry("self", TokenType.SELF),
             Map.entry("assert", TokenType.ASSERT)
@@ -58,9 +60,17 @@ public final class Scanner {
 
     // Returns list of tokens including EOF
     public List<Token> tokenizeAll(boolean printRecoveryMessages) {
+        return tokenizeAll(printRecoveryMessages, null);
+    }
+
+    /**
+     * When errorCollector is non-null, recoverable lexical errors (&, |, unknown symbol)
+     * are added to the list and scanning continues. Non-recoverable errors (e.g. unterminated string) still throw.
+     */
+    public List<Token> tokenizeAll(boolean printRecoveryMessages, List<LexicalErrorRecord> errorCollector) {
         var out = new ArrayList<Token>();
         while (true) {
-            var t = nextToken(printRecoveryMessages);
+            var t = nextToken(printRecoveryMessages, errorCollector);
             out.add(t);
             if (t.type() == TokenType.EOF) break;
         }
@@ -69,6 +79,10 @@ public final class Scanner {
 
     // Core function that returns next token per call
     public Token nextToken(boolean printRecoveryMessages) {
+        return nextToken(printRecoveryMessages, null);
+    }
+
+    private Token nextToken(boolean printRecoveryMessages, List<LexicalErrorRecord> errorCollector) {
         skipWhitespaceAndComments();
 
         if (isAtEnd()) {
@@ -126,11 +140,19 @@ public final class Scanner {
             case '&' -> {
                 advance();
                 if (match('&')) yield new Token(TokenType.ANDAND, "&&", null, startLine, startCol);
+                if (errorCollector != null) {
+                    errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"&\" (did you mean \"&&\"?)"));
+                    yield nextToken(printRecoveryMessages, errorCollector);
+                }
                 throw new LexicalException("Unknown symbol \"&\" (did you mean \"&&\"?)", startLine, startCol);
             }
             case '|' -> {
                 advance();
                 if (match('|')) yield new Token(TokenType.OROR, "||", null, startLine, startCol);
+                if (errorCollector != null) {
+                    errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"|\" (did you mean \"||\"?)"));
+                    yield nextToken(printRecoveryMessages, errorCollector);
+                }
                 throw new LexicalException("Unknown symbol \"|\" (did you mean \"||\"?)", startLine, startCol);
             }
 
@@ -155,8 +177,11 @@ public final class Scanner {
             case ']' -> { advance(); yield new Token(TokenType.RBRACKET, "]", null, startLine, startCol); }
 
             default -> {
-                // Unknown symbol recovery: report then replace with space (skip it)
                 advance();
+                if (errorCollector != null) {
+                    errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"%s\"".formatted(c)));
+                    yield nextToken(printRecoveryMessages, errorCollector);
+                }
                 throw new LexicalException("Unknown symbol \"%s\"".formatted(c), startLine, startCol);
             }
         };

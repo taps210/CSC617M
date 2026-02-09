@@ -1,0 +1,29 @@
+VOID Token "void" found in line 1 column 1
+MAIN Token "main" found in line 1 column 6
+LPAREN Token "(" found in line 1 column 10
+RPAREN Token ")" found in line 1 column 11
+LBRACE Token "{" found in line 1 column 13
+INT Token "int" found in line 2 column 3
+IDENT Token "x" found in line 2 column 7
+ASSIGN Token "=" found in line 2 column 9
+INT_LIT Token "42" (42) found in line 2 column 11
+SEMI Token ";" found in line 2 column 13
+IF Token "if" found in line 3 column 3
+LPAREN Token "(" found in line 3 column 6
+IDENT Token "x" found in line 3 column 7
+GTE Token ">=" found in line 3 column 9
+INT_LIT Token "0" (0) found in line 3 column 12
+RPAREN Token ")" found in line 3 column 13
+LBRACE Token "{" found in line 3 column 15
+PRINT Token "print" found in line 3 column 17
+LPAREN Token "(" found in line 3 column 22
+STRING_LIT Token ""hi"" (hi) found in line 3 column 23
+RPAREN Token ")" found in line 3 column 27
+SEMI Token ";" found in line 3 column 28
+RBRACE Token "}" found in line 3 column 30
+AGENT Token "agent" found in line 4 column 3
+WORLD Token "world" found in line 4 column 9
+SPAWN Token "spawn" found in line 4 column 15
+SEMI Token ";" found in line 4 column 20
+RBRACE Token "}" found in line 5 column 1
+EOF Token "" found in line 6 column 1

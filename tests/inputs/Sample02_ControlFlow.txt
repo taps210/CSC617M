@@ -1,0 +1,40 @@
+// Control flow: ABM with if/else, while, for, repeat-until, break, continue, ternary
+agent Wanderer {
+    int x, y;
+    int energy;
+
+    update {
+        if (energy <= 0) {
+            destroy(self);
+        } else {
+            energy = energy - 1;
+            move(x + 1, y);
+        }
+        for (int i = 0; i < 2; i = i + 1) {
+            if (energy < 5) { break; }
+            continue;
+        }
+        int dx = (energy > 10 ? 1 : -1);
+        move(x + dx, y);
+    }
+}
+
+world Grid {
+    int width = 20;
+    int height = 20;
+
+    update {
+        if (width > 0) {
+            while (height > 0) {
+                height = height - 1;
+            }
+        }
+    }
+}
+
+void main() {
+    spawn Wanderer(0, 0, 15) for 5;
+    repeat {
+        step();
+    } until (steps > 100);
+}

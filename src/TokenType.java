@@ -14,9 +14,10 @@ public enum TokenType {
     READ, PRINT,
     TRUE, FALSE,
     MAIN,
-    SPAWN, MOVE, STEP, NEIGHBORS, RAND,
+    SPAWN, MOVE, STEP, NEIGHBORS, RAND, UPDATE,
     SELF,
     ASSERT,
+    DESTROY,
 
     // Operators
     PLUS, MINUS, STAR, SLASH, MOD,

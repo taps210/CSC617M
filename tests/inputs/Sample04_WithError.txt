@@ -1,0 +1,52 @@
+// Canonical ABM: Sheep/Wolf/Ecosystem with move, neighbors, spawn, step, destroy
+agent Sheep {
+    int x, y;
+    int energy;
+
+    update {
+        move(self.x + rand(-1, 1), self.y + rand(-1, 1));
+        energy = energy - 1;
+
+        if (energy <= 0) {
+            destroy(self);
+        }
+    }
+}
+
+agent Wolf {
+    int x, y;
+    int hunger;
+
+    update {
+        hunger = hunger + 1;
+
+        sheep = neighbors(self, 3);
+        if (sheep.length > 0) {
+            destroy(sheep[0]);
+            hunger = 0;
+        }
+
+        if (hunger > 30) {
+            destroy(self);
+        }
+    }
+}
+
+world Ecosystem {
+    int width = 100;
+    int height = 100;
+
+    update {
+        // Environmental updates
+    }
+}
+
+void main() {
+&
+    spawn Sheep(rand(0, 100), rand(0, 100)) for 50;
+    spawn Wolf(rand(0, 100), rand(0, 100)) for 10;
+
+    repeat {
+        step();
+    } until (steps > 1000);
+}

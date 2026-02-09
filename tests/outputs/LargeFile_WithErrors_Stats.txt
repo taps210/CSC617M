@@ -1,0 +1,18 @@
+# Statistics for tests/inputs/LargeFile_WithErrors.txt
+# Built by concatenating Sample01_WithError .. Sample05_WithError, repeated 3402 times.
+# One error per program type: Sample01=@, Sample02=#, Sample03=$, Sample04=&, Sample05=|
+
+Total errors: 17010
+Repetitions: 3402
+Errors per repetition: 5
+
+Count by error type (each 3402):
+  Unknown symbol "@" : 3402
+  Unknown symbol "#" : 3402
+  Unknown symbol "$" : 3402
+  Unknown symbol "&" (did you mean "&&"?) : 3402
+  Unknown symbol "|" (did you mean "||"?) : 3402
+
+Full list of errors: LargeFile_WithErrors_Output.txt (one error per two lines: "Error found in line L column C" then message)
+
+# Time to complete (--collect-errors): varies per run; sample: ~650 ms
