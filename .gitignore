@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+build/
+
+# IDE / editor
+.idea/
+*.iml
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Class files (in case any end up at repo root)
+*.class
