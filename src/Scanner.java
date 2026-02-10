@@ -48,6 +48,8 @@ public final class Scanner {
             Map.entry("rand", TokenType.RAND),
             Map.entry("update", TokenType.UPDATE),
             Map.entry("destroy", TokenType.DESTROY),
+            Map.entry("pre", TokenType.PRE),
+            Map.entry("post", TokenType.POST),
 
             Map.entry("self", TokenType.SELF),
                 Map.entry("assert", TokenType.ASSERT),
