@@ -28,3 +28,16 @@ java -cp build/classes/java/main src.Main --collect-errors <inputFile> [outputFi
 ```
 
 Reports under `build/reports/tests/test/index.html` (open in a browser). Same `gradlew.bat` note on Windows.
+
+**Scanner visualization (Streamlit)**
+
+One-page dashboard: token list, large-file performance, and the five sample programs (code, scanner output, description). Sample 2 shows both the neighbors and zone variants.
+
+From project root:
+
+```bash
+pip install -r viz/requirements.txt
+streamlit run viz/app.py
+```
+
+Requires the project to be built (`./gradlew build`) and the large files to exist (`python3 scripts/generate_large_files.py` if needed).

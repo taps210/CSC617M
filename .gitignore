@@ -13,3 +13,10 @@ Thumbs.db
 
 # Class files (in case any end up at repo root)
 *.class
+
+# Streamlit / Python (viz)
+viz/__pycache__/
+.venv/
+venv/
+
+*.zip
