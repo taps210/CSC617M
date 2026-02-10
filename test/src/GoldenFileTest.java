@@ -67,6 +67,11 @@ class GoldenFileTest {
     }
 
     @Test
+    void sample02_trafficZone_matchesGolden() throws Exception {
+        goldenSample("Sample02_TrafficZone.txt", "Sample02_TrafficZone_Output.txt");
+    }
+
+    @Test
     void sample03_trafficZone_matchesGolden() throws Exception {
         goldenSample("Sample03_TrafficZone.txt", "Sample03_Output.txt");
     }
@@ -89,6 +94,26 @@ class GoldenFileTest {
         List<Token> tokens = new Scanner(Files.readString(input)).tokenizeAll(false);
         assertEquals(parseFirstLineValue(statsFile, "Tokens:"), tokens.size(),
                 "Token count should match recorded value in LargeFile_BenchStats.txt");
+    }
+
+    @Test
+    void largeFile_small_tokenCountMatchesRecorded() throws Exception {
+        Path input = TESTS_IN.resolve("LargeFile_Small.txt");
+        Path statsFile = TESTS_OUT.resolve("LargeFile_Small_BenchStats.txt");
+        assumeFilesExist(input, statsFile);
+        List<Token> tokens = new Scanner(Files.readString(input)).tokenizeAll(false);
+        assertEquals(parseFirstLineValue(statsFile, "Tokens:"), tokens.size(),
+                "Token count should match recorded value in LargeFile_Small_BenchStats.txt");
+    }
+
+    @Test
+    void largeFile_large_tokenCountMatchesRecorded() throws Exception {
+        Path input = TESTS_IN.resolve("LargeFile_Large.txt");
+        Path statsFile = TESTS_OUT.resolve("LargeFile_Large_BenchStats.txt");
+        assumeFilesExist(input, statsFile);
+        List<Token> tokens = new Scanner(Files.readString(input)).tokenizeAll(false);
+        assertEquals(parseFirstLineValue(statsFile, "Tokens:"), tokens.size(),
+                "Token count should match recorded value in LargeFile_Large_BenchStats.txt");
     }
 
     @Test

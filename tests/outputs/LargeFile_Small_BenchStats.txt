@@ -1,0 +1,7 @@
+# Benchmark statistics for tests/inputs/LargeFile_Small.txt
+# Used by tests to verify scanner output.
+
+Tokens: 333397
+File size (bytes): 1009260
+# Elapsed time varies per run; sample: ~33 ms
+# Full token dump: run --out to generate if needed

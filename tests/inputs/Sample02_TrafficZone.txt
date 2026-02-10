@@ -1,0 +1,46 @@
+// Traffic: cars slow down when near intersections. This version uses zone; behavior is triggered when Intersection is in radius.
+agent Intersection {
+    int x, y;
+}
+
+agent Car {
+    int x, y;
+    int speed = 1;
+
+    zone near_intersection(2, Intersection) {
+        speed = 0;
+    }
+
+    update {
+        speed = 1;
+        move(self.x + speed, self.y);
+    }
+}
+
+world Street {
+    int width = 30;
+    int height = 30;
+    bool spawned = false;
+
+    pre {
+        if (!spawned) {
+            for (int i = 0; i < 5; i = i + 1) {
+                spawn Intersection(5 * i, 15);
+            }
+            for (int i = 0; i < 10; i = i + 1) {
+                spawn Car(rand(0, 30), rand(0, 30));
+            }
+            spawned = true;
+        }
+    }
+
+    post {
+        // street tick
+    }
+}
+
+void main() {
+    repeat {
+        step();
+    } until (steps > 200);
+}
