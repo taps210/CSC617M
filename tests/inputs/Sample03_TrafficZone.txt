@@ -1,46 +1,49 @@
-// Traffic: cars slow down when near intersections. This version uses zone; behavior is triggered when Intersection is in radius.
-agent Intersection {
+// Predator-prey: Prey move randomly; Predators chase and consume nearby Prey.
+agent Prey {
     int x, y;
-}
-
-agent Car {
-    int x, y;
-    int speed = 1;
-
-    zone near_intersection(2, Intersection) {
-        speed = 0;
-    }
 
     update {
-        speed = 1;
-        move(self.x + speed, self.y);
+        move(self.x + rand(-1, 1), self.y + rand(-1, 1));
     }
 }
 
-world Street {
-    int width = 30;
-    int height = 30;
+agent Predator {
+    int x, y;
+
+    update {
+        targets = neighbors(self, 2);
+        if (targets.length > 0) {
+            destroy(targets[0]);
+        } else {
+            move(self.x + rand(-1, 1), self.y + rand(-1, 1));
+        }
+    }
+}
+
+world Meadow {
+    int width = 40;
+    int height = 40;
     bool spawned = false;
 
     pre {
         if (!spawned) {
-            for (int i = 0; i < 5; i = i + 1) {
-                spawn Intersection(5 * i, 15);
+            for (int i = 0; i < 15; i = i + 1) {
+                spawn Prey(rand(0, 40), rand(0, 40));
             }
-            for (int i = 0; i < 10; i = i + 1) {
-                spawn Car(rand(0, 30), rand(0, 30));
+            for (int i = 0; i < 3; i = i + 1) {
+                spawn Predator(rand(0, 40), rand(0, 40));
             }
             spawned = true;
         }
     }
 
     post {
-        // street tick
+        // tick
     }
 }
 
 void main() {
     repeat {
         step();
-    } until (steps > 200);
+    } until (steps > 150);
 }

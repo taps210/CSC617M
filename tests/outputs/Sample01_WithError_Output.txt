@@ -1,2 +1,4 @@
-Error found in line 38 column 1
-Unknown symbol "@"
+Error found in line 8 column 17
+Recovering: Replacing symbol "x" at column 18 with space
+Error found in line 35 column 18
+Unterminated string constant

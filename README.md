@@ -12,14 +12,23 @@ On Windows: `gradlew.bat build`
 
 **Run**
 
-After building:
+From the **project root** (where `build.gradle.kts` is), after building:
 
 ```bash
-java -cp build/classes/java/main src.Main --print <inputFile>
+./gradlew build
+./gradlew run --args="--print tests/inputs/Sample01_Marketplace.txt"
+```
+
+Or with `java` directly (classpath must point to `build/classes/java/main`):
+
+```bash
+java -cp build/classes/java/main src.Main --print tests/inputs/Sample01_Marketplace.txt
 java -cp build/classes/java/main src.Main --out <outputFile> <inputFile>
 java -cp build/classes/java/main src.Main --bench <inputFile>
 java -cp build/classes/java/main src.Main --collect-errors <inputFile> [outputFile]
 ```
+
+If you see "Could not find or load main class src.Main", run from the project root and run `./gradlew build` first.
 
 **Tests**
 

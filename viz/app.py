@@ -40,7 +40,7 @@ TOKEN_TYPES = [
 SAMPLE_DESCRIPTIONS = {
     1: "Trader and Collector agents in a shared world; Collector drops items, Trader picks them up when within neighbor distance.",
     2: "Same traffic scenario (cars slow near intersections) shown two ways: using `neighbors()` in update vs using `zone`/radius. Two code variants in this section.",
-    3: "Same traffic idea using `zone` and radius (standalone zone version).",
+    3: "Predator-prey: Prey move randomly; Predators chase and consume nearby Prey when in radius.",
     4: "Agents move in a city and infect others when close; population can grow or shrink (e.g. death).",
     5: "Foragers move and consume energy; resource regrows in world post; temperature affects energy loss.",
 }
@@ -123,10 +123,13 @@ st.header("Sample programs")
 samples = [
     (1, "Marketplace", [("Sample01_Marketplace.txt", "Sample01_Output.txt")], "Sample01_WithError.txt", "Sample01_WithError_Output.txt"),
     (2, "Traffic: Neighbors vs Zone", [("Sample02_TrafficNeighbors.txt", "Sample02_Output.txt"), ("Sample02_TrafficZone.txt", "Sample02_TrafficZone_Output.txt")], "Sample02_WithError.txt", "Sample02_WithError_Output.txt"),
-    (3, "Traffic (Zone)", [("Sample03_TrafficZone.txt", "Sample03_Output.txt")], "Sample03_WithError.txt", "Sample03_WithError_Output.txt"),
+    (3, "Predator-prey", [("Sample03_TrafficZone.txt", "Sample03_Output.txt")], "Sample03_WithError.txt", "Sample03_WithError_Output.txt"),
     (4, "Disease spread", [("Sample04_DiseaseSpread.txt", "Sample04_Output.txt")], "Sample04_WithError.txt", "Sample04_WithError_Output.txt"),
     (5, "Resource competition", [("Sample05_ResourceCompetition.txt", "Sample05_Output.txt")], "Sample05_WithError.txt", "Sample05_WithError_Output.txt"),
 ]
+
+OUTPUT_HEIGHT = 380
+ERROR_OUTPUT_HEIGHT = 140
 
 for num, title, input_output_pairs, with_error_in, with_error_out in samples:
     with st.expander(f"Sample {num}: {title}", expanded=(num == 1)):
@@ -138,11 +141,12 @@ for num, title, input_output_pairs, with_error_in, with_error_out in samples:
             incode = INPUTS / iname
             outfile = OUTPUTS / oname
             if incode.exists():
-                st.text_area("Code", incode.read_text(), height=200, key=f"code_{num}_{i}")
+                st.caption("Code")
+                st.code(incode.read_text(), language="c", line_numbers=True)
             else:
                 st.warning(f"Missing {iname}")
             if outfile.exists():
-                st.text_area("Scanner output (tokens)", outfile.read_text(), height=200, key=f"out_{num}_{i}")
+                st.text_area("Scanner output (tokens)", outfile.read_text(), height=OUTPUT_HEIGHT, key=f"out_{num}_{i}")
             else:
                 st.warning(f"Missing {oname}")
         # Same sample with intentional errors
@@ -151,10 +155,11 @@ for num, title, input_output_pairs, with_error_in, with_error_out in samples:
         err_in = INPUTS / with_error_in
         err_out = OUTPUTS / with_error_out
         if err_in.exists():
-            st.text_area("Code (with error)", err_in.read_text(), height=200, key=f"code_err_{num}")
+            st.caption("Code (with error)")
+            st.code(err_in.read_text(), language="c", line_numbers=True)
         else:
             st.warning(f"Missing {with_error_in}")
         if err_out.exists():
-            st.text_area("Scanner output (error)", err_out.read_text(), height=120, key=f"out_err_{num}")
+            st.text_area("Scanner output (error)", err_out.read_text(), height=ERROR_OUTPUT_HEIGHT, key=f"out_err_{num}")
         else:
             st.warning(f"Missing {with_error_out}")

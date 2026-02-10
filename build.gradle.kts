@@ -1,5 +1,6 @@
 plugins {
     java
+    application
 }
 
 group = "csc617m"
@@ -21,6 +22,10 @@ sourceSets {
 
 repositories {
     mavenCentral()
+}
+
+application {
+    mainClass.set("src.Main")
 }
 
 dependencies {
