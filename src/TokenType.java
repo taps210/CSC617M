@@ -17,6 +17,7 @@ public enum TokenType {
     SPAWN, MOVE, STEP, NEIGHBORS, RAND, UPDATE,
     SELF,
     ASSERT,
+    ZONE, RADIUS,
     DESTROY,
 
     // Operators

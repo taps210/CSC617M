@@ -50,7 +50,10 @@ public final class Scanner {
             Map.entry("destroy", TokenType.DESTROY),
 
             Map.entry("self", TokenType.SELF),
-            Map.entry("assert", TokenType.ASSERT)
+                Map.entry("assert", TokenType.ASSERT),
+
+                Map.entry("zone", TokenType.ZONE),
+                Map.entry("radius", TokenType.RADIUS)
     );
 
     // Stores entire program text in src
