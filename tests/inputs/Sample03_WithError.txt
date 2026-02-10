@@ -1,10 +1,10 @@
-// Aggregates and records: ABM with use, const, type record, arrays
+// Foragers with position and trail history (records and arrays)
 use std;
 $
 const int MAX = 100;
 type record Point { int x; int y; }
 
-agent Walker {
+agent Forager {
     Point pos;
     int trail[5];
 
@@ -16,23 +16,29 @@ agent Walker {
     }
 }
 
-world Field {
+world Nest {
     int width = MAX;
     int height = MAX;
     int grid[10];
+    bool spawned = false;
 
     update {
+        if (!spawned) {
+            Point p;
+            p.x = 0;
+            p.y = 0;
+            int arr[10];
+            arr[0] = 1;
+            for (int i = 0; i < 3; i = i + 1) {
+                spawn Forager(p, arr);
+            }
+            spawned = true;
+        }
         grid[0] = 0;
     }
 }
 
 void main() {
-    Point p;
-    p.x = 0;
-    p.y = 0;
-    int arr[10];
-    arr[0] = 1;
-    spawn Walker(p, arr) for 3;
     repeat {
         step();
     } until (steps > 50);

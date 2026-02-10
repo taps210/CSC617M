@@ -1,4 +1,4 @@
-// Arithmetic and operators: ABM with +, -, *, /, %, rand(), expressions
+// Market day: traders with price/quantity/cost, arithmetic and rand, go out of business by rules
 agent Trader {
     int x, y;
     int price;
@@ -23,8 +23,15 @@ agent Trader {
 world Market {
     int width = 50;
     int height = 50;
+    bool spawned = false;
 
     update {
+        if (!spawned) {
+            for (int i = 0; i < 5; i = i + 1) {
+                spawn Trader(rand(0, 50), rand(0, 50), 10, 20, 1.5);
+            }
+            spawned = true;
+        }
         // wrap-around style
     }
 }
@@ -34,7 +41,6 @@ void main() {
     int b = 4 * 5 / 2;
     int c = 10 % 3;
     float x = 0.5 * 2.0;
-    spawn Trader(rand(0, 50), rand(0, 50), 10, 20, 1.5) for 5;
     repeat {
         step();
     } until (steps > 200);

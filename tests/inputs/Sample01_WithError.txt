@@ -1,14 +1,12 @@
-// Types and I/O: simple ABM with primitives and read/print
-agent Logger {
-    int count;
-    float value;
+// Config-driven run: read simulation params, spawn sensor monitors, print status
+agent Sensor {
+    int id;
+    float threshold;
     string name;
     bool active;
-    char tag;
+    char zone;
 
     update {
-        count = count + 1;
-        value = value + 0.5;
         if (active) {
             move(0, 0);
         }
@@ -17,22 +15,34 @@ agent Logger {
 
 world Env {
     int size = 10;
+    bool spawned = false;
 
     update {
-        // minimal env
+        if (!spawned) {
+@
+            for (int i = 0; i < 3; i = i + 1) {
+                spawn Sensor(1, 0.5, "sensor_A", true, 'A');
+            }
+            spawned = true;
+        }
+        // env tick
     }
 }
 
 void main() {
-@
-    spawn Logger(0, 0.0, "agent", true, 'L') for 3;
+    int gridSize = 0;
+    float seed = 0.0;
+    string runName = "run";
+    bool verbose = true;
+    char mode = 'N';
+    read(gridSize);
+    read(seed);
+    read(runName);
+    read(verbose);
+    read(mode);
+    print(runName);
+    print(gridSize);
     step();
     step();
-    int n = 42;
-    float f = 3.14;
-    string s = "hello";
-    bool b = true;
-    read(n);
-    print(s);
-    print(n);
+    print(verbose);
 }

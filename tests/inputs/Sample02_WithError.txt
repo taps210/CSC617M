@@ -1,5 +1,5 @@
-// Control flow: ABM with if/else, while, for, repeat-until, break, continue, ternary
-agent Wanderer {
+// Prey on a pasture: energy-based grazing, movement, death; main sets noise to affect behavior
+agent Prey {
     int x, y;
     int energy;
 
@@ -8,6 +8,9 @@ agent Wanderer {
             destroy(self);
         } else {
             energy = energy - 1;
+            if (Pasture.noiseLevel > 0.2) {
+                energy = energy - 1;
+            }
             move(x + 1, y);
         }
         for (int i = 0; i < 2; i = i + 1) {
@@ -19,11 +22,19 @@ agent Wanderer {
     }
 }
 
-world Grid {
+world Pasture {
     int width = 20;
     int height = 20;
+    float noiseLevel;
+    bool spawned = false;
 
     update {
+        if (!spawned) {
+            for (int i = 0; i < 5; i = i + 1) {
+                spawn Prey(0, 0, 15);
+            }
+            spawned = true;
+        }
         if (width > 0) {
             while (height > 0) {
                 height = height - 1;
@@ -34,7 +45,7 @@ world Grid {
 
 void main() {
 #
-    spawn Wanderer(0, 0, 15) for 5;
+    Pasture.noiseLevel = 0.3;
     repeat {
         step();
     } until (steps > 100);
