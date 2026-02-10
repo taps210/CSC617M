@@ -57,28 +57,28 @@ class GoldenFileTest {
     }
 
     @Test
-    void sample01_typesAndIO_matchesGolden() throws Exception {
-        goldenSample("Sample01_TypesAndIO.txt", "Sample01_Output.txt");
+    void sample01_marketplace_matchesGolden() throws Exception {
+        goldenSample("Sample01_Marketplace.txt", "Sample01_Output.txt");
     }
 
     @Test
-    void sample02_controlFlow_matchesGolden() throws Exception {
-        goldenSample("Sample02_ControlFlow.txt", "Sample02_Output.txt");
+    void sample02_trafficNeighbors_matchesGolden() throws Exception {
+        goldenSample("Sample02_TrafficNeighbors.txt", "Sample02_Output.txt");
     }
 
     @Test
-    void sample03_aggregatesAndRecords_matchesGolden() throws Exception {
-        goldenSample("Sample03_AggregatesAndRecords.txt", "Sample03_Output.txt");
+    void sample03_trafficZone_matchesGolden() throws Exception {
+        goldenSample("Sample03_TrafficZone.txt", "Sample03_Output.txt");
     }
 
     @Test
-    void sample04_agentWorld_matchesGolden() throws Exception {
-        goldenSample("Sample04_AgentWorld.txt", "Sample04_Output.txt");
+    void sample04_diseaseSpread_matchesGolden() throws Exception {
+        goldenSample("Sample04_DiseaseSpread.txt", "Sample04_Output.txt");
     }
 
     @Test
-    void sample05_arithmetic_matchesGolden() throws Exception {
-        goldenSample("Sample05_Arithmetic.txt", "Sample05_Output.txt");
+    void sample05_resourceCompetition_matchesGolden() throws Exception {
+        goldenSample("Sample05_ResourceCompetition.txt", "Sample05_Output.txt");
     }
 
     @Test

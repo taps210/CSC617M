@@ -1,4 +1,4 @@
-// Traffic: cars slow down when near intersections. This version uses neighbors() in update.
+// Traffic: cars slow down when near intersections. This version uses zone; behavior is triggered when Intersection is in radius.
 agent Intersection {
     int x, y;
 }
@@ -7,13 +7,12 @@ agent Car {
     int x, y;
     int speed = 1;
 
+    zone near_intersection(2, Intersection) {
+        speed = 0;
+    }
+
     update {
-        nearby = neighbors(self, 2);
-        if (nearby.length > 0) {
-            speed = 0;
-        } else {
-            speed = 1;
-        }
+        speed = 1;
         move(self.x + speed, self.y);
     }
 }
@@ -25,7 +24,6 @@ world Street {
 
     pre {
         if (!spawned) {
-#
             for (int i = 0; i < 5; i = i + 1) {
                 spawn Intersection(5 * i, 15);
             }

@@ -1,198 +1,179 @@
-USE Token "use" found in line 2 column 1
-IDENT Token "std" found in line 2 column 5
-SEMI Token ";" found in line 2 column 8
-CONST Token "const" found in line 3 column 1
-INT Token "int" found in line 3 column 7
-IDENT Token "MAX" found in line 3 column 11
-ASSIGN Token "=" found in line 3 column 15
-INT_LIT Token "100" (100) found in line 3 column 17
-SEMI Token ";" found in line 3 column 20
-TYPE Token "type" found in line 4 column 1
-RECORD Token "record" found in line 4 column 6
-IDENT Token "Point" found in line 4 column 13
-LBRACE Token "{" found in line 4 column 19
-INT Token "int" found in line 4 column 21
-IDENT Token "x" found in line 4 column 25
-SEMI Token ";" found in line 4 column 26
-INT Token "int" found in line 4 column 28
-IDENT Token "y" found in line 4 column 32
-SEMI Token ";" found in line 4 column 33
-RBRACE Token "}" found in line 4 column 35
+AGENT Token "agent" found in line 2 column 1
+IDENT Token "Intersection" found in line 2 column 7
+LBRACE Token "{" found in line 2 column 20
+INT Token "int" found in line 3 column 5
+IDENT Token "x" found in line 3 column 9
+COMMA Token "," found in line 3 column 10
+IDENT Token "y" found in line 3 column 12
+SEMI Token ";" found in line 3 column 13
+RBRACE Token "}" found in line 4 column 1
 AGENT Token "agent" found in line 6 column 1
-IDENT Token "Forager" found in line 6 column 7
-LBRACE Token "{" found in line 6 column 15
-IDENT Token "Point" found in line 7 column 5
-IDENT Token "pos" found in line 7 column 11
-SEMI Token ";" found in line 7 column 14
+IDENT Token "Car" found in line 6 column 7
+LBRACE Token "{" found in line 6 column 11
+INT Token "int" found in line 7 column 5
+IDENT Token "x" found in line 7 column 9
+COMMA Token "," found in line 7 column 10
+IDENT Token "y" found in line 7 column 12
+SEMI Token ";" found in line 7 column 13
 INT Token "int" found in line 8 column 5
-IDENT Token "trail" found in line 8 column 9
-LBRACKET Token "[" found in line 8 column 14
-INT_LIT Token "5" (5) found in line 8 column 15
-RBRACKET Token "]" found in line 8 column 16
-SEMI Token ";" found in line 8 column 17
-UPDATE Token "update" found in line 10 column 5
-LBRACE Token "{" found in line 10 column 12
-IDENT Token "pos" found in line 11 column 9
-DOT Token "." found in line 11 column 12
-IDENT Token "x" found in line 11 column 13
+IDENT Token "speed" found in line 8 column 9
+ASSIGN Token "=" found in line 8 column 15
+INT_LIT Token "1" (1) found in line 8 column 17
+SEMI Token ";" found in line 8 column 18
+ZONE Token "zone" found in line 10 column 5
+IDENT Token "near_intersection" found in line 10 column 10
+LPAREN Token "(" found in line 10 column 27
+INT_LIT Token "2" (2) found in line 10 column 28
+COMMA Token "," found in line 10 column 29
+IDENT Token "Intersection" found in line 10 column 31
+RPAREN Token ")" found in line 10 column 43
+LBRACE Token "{" found in line 10 column 45
+IDENT Token "speed" found in line 11 column 9
 ASSIGN Token "=" found in line 11 column 15
-IDENT Token "pos" found in line 11 column 17
-DOT Token "." found in line 11 column 20
-IDENT Token "x" found in line 11 column 21
-PLUS Token "+" found in line 11 column 23
-INT_LIT Token "1" (1) found in line 11 column 25
-SEMI Token ";" found in line 11 column 26
-IDENT Token "pos" found in line 12 column 9
-DOT Token "." found in line 12 column 12
-IDENT Token "y" found in line 12 column 13
-ASSIGN Token "=" found in line 12 column 15
-IDENT Token "pos" found in line 12 column 17
-DOT Token "." found in line 12 column 20
-IDENT Token "y" found in line 12 column 21
-PLUS Token "+" found in line 12 column 23
-INT_LIT Token "1" (1) found in line 12 column 25
-SEMI Token ";" found in line 12 column 26
-IDENT Token "trail" found in line 13 column 9
-LBRACKET Token "[" found in line 13 column 14
-INT_LIT Token "0" (0) found in line 13 column 15
-RBRACKET Token "]" found in line 13 column 16
-ASSIGN Token "=" found in line 13 column 18
-IDENT Token "pos" found in line 13 column 20
-DOT Token "." found in line 13 column 23
-IDENT Token "x" found in line 13 column 24
-SEMI Token ";" found in line 13 column 25
-MOVE Token "move" found in line 14 column 9
-LPAREN Token "(" found in line 14 column 13
-IDENT Token "pos" found in line 14 column 14
-DOT Token "." found in line 14 column 17
-IDENT Token "x" found in line 14 column 18
-COMMA Token "," found in line 14 column 19
-IDENT Token "pos" found in line 14 column 21
-DOT Token "." found in line 14 column 24
-IDENT Token "y" found in line 14 column 25
-RPAREN Token ")" found in line 14 column 26
-SEMI Token ";" found in line 14 column 27
-RBRACE Token "}" found in line 15 column 5
-RBRACE Token "}" found in line 16 column 1
-WORLD Token "world" found in line 18 column 1
-IDENT Token "Nest" found in line 18 column 7
-LBRACE Token "{" found in line 18 column 12
-INT Token "int" found in line 19 column 5
-IDENT Token "width" found in line 19 column 9
-ASSIGN Token "=" found in line 19 column 15
-IDENT Token "MAX" found in line 19 column 17
-SEMI Token ";" found in line 19 column 20
-INT Token "int" found in line 20 column 5
-IDENT Token "height" found in line 20 column 9
-ASSIGN Token "=" found in line 20 column 16
-IDENT Token "MAX" found in line 20 column 18
-SEMI Token ";" found in line 20 column 21
+INT_LIT Token "0" (0) found in line 11 column 17
+SEMI Token ";" found in line 11 column 18
+RBRACE Token "}" found in line 12 column 5
+UPDATE Token "update" found in line 14 column 5
+LBRACE Token "{" found in line 14 column 12
+IDENT Token "speed" found in line 15 column 9
+ASSIGN Token "=" found in line 15 column 15
+INT_LIT Token "1" (1) found in line 15 column 17
+SEMI Token ";" found in line 15 column 18
+MOVE Token "move" found in line 16 column 9
+LPAREN Token "(" found in line 16 column 13
+SELF Token "self" found in line 16 column 14
+DOT Token "." found in line 16 column 18
+IDENT Token "x" found in line 16 column 19
+PLUS Token "+" found in line 16 column 21
+IDENT Token "speed" found in line 16 column 23
+COMMA Token "," found in line 16 column 28
+SELF Token "self" found in line 16 column 30
+DOT Token "." found in line 16 column 34
+IDENT Token "y" found in line 16 column 35
+RPAREN Token ")" found in line 16 column 36
+SEMI Token ";" found in line 16 column 37
+RBRACE Token "}" found in line 17 column 5
+RBRACE Token "}" found in line 18 column 1
+WORLD Token "world" found in line 20 column 1
+IDENT Token "Street" found in line 20 column 7
+LBRACE Token "{" found in line 20 column 14
 INT Token "int" found in line 21 column 5
-IDENT Token "grid" found in line 21 column 9
-LBRACKET Token "[" found in line 21 column 13
-INT_LIT Token "10" (10) found in line 21 column 14
-RBRACKET Token "]" found in line 21 column 16
-SEMI Token ";" found in line 21 column 17
-BOOL Token "bool" found in line 22 column 5
-IDENT Token "spawned" found in line 22 column 10
-ASSIGN Token "=" found in line 22 column 18
-FALSE Token "false" found in line 22 column 20
-SEMI Token ";" found in line 22 column 25
-UPDATE Token "update" found in line 24 column 5
-LBRACE Token "{" found in line 24 column 12
-IF Token "if" found in line 25 column 9
-LPAREN Token "(" found in line 25 column 12
-NOT Token "!" found in line 25 column 13
-IDENT Token "spawned" found in line 25 column 14
-RPAREN Token ")" found in line 25 column 21
-LBRACE Token "{" found in line 25 column 23
-IDENT Token "Point" found in line 26 column 13
-IDENT Token "p" found in line 26 column 19
-SEMI Token ";" found in line 26 column 20
-IDENT Token "p" found in line 27 column 13
-DOT Token "." found in line 27 column 14
-IDENT Token "x" found in line 27 column 15
-ASSIGN Token "=" found in line 27 column 17
-INT_LIT Token "0" (0) found in line 27 column 19
-SEMI Token ";" found in line 27 column 20
-IDENT Token "p" found in line 28 column 13
-DOT Token "." found in line 28 column 14
-IDENT Token "y" found in line 28 column 15
-ASSIGN Token "=" found in line 28 column 17
-INT_LIT Token "0" (0) found in line 28 column 19
-SEMI Token ";" found in line 28 column 20
-INT Token "int" found in line 29 column 13
-IDENT Token "arr" found in line 29 column 17
-LBRACKET Token "[" found in line 29 column 20
-INT_LIT Token "10" (10) found in line 29 column 21
-RBRACKET Token "]" found in line 29 column 23
-SEMI Token ";" found in line 29 column 24
-IDENT Token "arr" found in line 30 column 13
-LBRACKET Token "[" found in line 30 column 16
-INT_LIT Token "0" (0) found in line 30 column 17
-RBRACKET Token "]" found in line 30 column 18
-ASSIGN Token "=" found in line 30 column 20
-INT_LIT Token "1" (1) found in line 30 column 22
-SEMI Token ";" found in line 30 column 23
-FOR Token "for" found in line 31 column 13
-LPAREN Token "(" found in line 31 column 17
-INT Token "int" found in line 31 column 18
-IDENT Token "i" found in line 31 column 22
-ASSIGN Token "=" found in line 31 column 24
-INT_LIT Token "0" (0) found in line 31 column 26
-SEMI Token ";" found in line 31 column 27
-IDENT Token "i" found in line 31 column 29
-LT Token "<" found in line 31 column 31
-INT_LIT Token "3" (3) found in line 31 column 33
-SEMI Token ";" found in line 31 column 34
-IDENT Token "i" found in line 31 column 36
-ASSIGN Token "=" found in line 31 column 38
-IDENT Token "i" found in line 31 column 40
-PLUS Token "+" found in line 31 column 42
-INT_LIT Token "1" (1) found in line 31 column 44
-RPAREN Token ")" found in line 31 column 45
-LBRACE Token "{" found in line 31 column 47
-SPAWN Token "spawn" found in line 32 column 17
-IDENT Token "Forager" found in line 32 column 23
-LPAREN Token "(" found in line 32 column 30
-IDENT Token "p" found in line 32 column 31
-COMMA Token "," found in line 32 column 32
-IDENT Token "arr" found in line 32 column 34
-RPAREN Token ")" found in line 32 column 37
-SEMI Token ";" found in line 32 column 38
-RBRACE Token "}" found in line 33 column 13
-IDENT Token "spawned" found in line 34 column 13
-ASSIGN Token "=" found in line 34 column 21
-TRUE Token "true" found in line 34 column 23
-SEMI Token ";" found in line 34 column 27
-RBRACE Token "}" found in line 35 column 9
-IDENT Token "grid" found in line 36 column 9
-LBRACKET Token "[" found in line 36 column 13
-INT_LIT Token "0" (0) found in line 36 column 14
-RBRACKET Token "]" found in line 36 column 15
-ASSIGN Token "=" found in line 36 column 17
-INT_LIT Token "0" (0) found in line 36 column 19
-SEMI Token ";" found in line 36 column 20
-RBRACE Token "}" found in line 37 column 5
-RBRACE Token "}" found in line 38 column 1
-VOID Token "void" found in line 40 column 1
-MAIN Token "main" found in line 40 column 6
-LPAREN Token "(" found in line 40 column 10
-RPAREN Token ")" found in line 40 column 11
-LBRACE Token "{" found in line 40 column 13
-REPEAT Token "repeat" found in line 41 column 5
-LBRACE Token "{" found in line 41 column 12
-STEP Token "step" found in line 42 column 9
-LPAREN Token "(" found in line 42 column 13
-RPAREN Token ")" found in line 42 column 14
-SEMI Token ";" found in line 42 column 15
-RBRACE Token "}" found in line 43 column 5
-UNTIL Token "until" found in line 43 column 7
-LPAREN Token "(" found in line 43 column 13
-IDENT Token "steps" found in line 43 column 14
-GT Token ">" found in line 43 column 20
-INT_LIT Token "50" (50) found in line 43 column 22
-RPAREN Token ")" found in line 43 column 24
-SEMI Token ";" found in line 43 column 25
-RBRACE Token "}" found in line 44 column 1
-EOF Token "" found in line 45 column 1
+IDENT Token "width" found in line 21 column 9
+ASSIGN Token "=" found in line 21 column 15
+INT_LIT Token "30" (30) found in line 21 column 17
+SEMI Token ";" found in line 21 column 19
+INT Token "int" found in line 22 column 5
+IDENT Token "height" found in line 22 column 9
+ASSIGN Token "=" found in line 22 column 16
+INT_LIT Token "30" (30) found in line 22 column 18
+SEMI Token ";" found in line 22 column 20
+BOOL Token "bool" found in line 23 column 5
+IDENT Token "spawned" found in line 23 column 10
+ASSIGN Token "=" found in line 23 column 18
+FALSE Token "false" found in line 23 column 20
+SEMI Token ";" found in line 23 column 25
+PRE Token "pre" found in line 25 column 5
+LBRACE Token "{" found in line 25 column 9
+IF Token "if" found in line 26 column 9
+LPAREN Token "(" found in line 26 column 12
+NOT Token "!" found in line 26 column 13
+IDENT Token "spawned" found in line 26 column 14
+RPAREN Token ")" found in line 26 column 21
+LBRACE Token "{" found in line 26 column 23
+FOR Token "for" found in line 27 column 13
+LPAREN Token "(" found in line 27 column 17
+INT Token "int" found in line 27 column 18
+IDENT Token "i" found in line 27 column 22
+ASSIGN Token "=" found in line 27 column 24
+INT_LIT Token "0" (0) found in line 27 column 26
+SEMI Token ";" found in line 27 column 27
+IDENT Token "i" found in line 27 column 29
+LT Token "<" found in line 27 column 31
+INT_LIT Token "5" (5) found in line 27 column 33
+SEMI Token ";" found in line 27 column 34
+IDENT Token "i" found in line 27 column 36
+ASSIGN Token "=" found in line 27 column 38
+IDENT Token "i" found in line 27 column 40
+PLUS Token "+" found in line 27 column 42
+INT_LIT Token "1" (1) found in line 27 column 44
+RPAREN Token ")" found in line 27 column 45
+LBRACE Token "{" found in line 27 column 47
+SPAWN Token "spawn" found in line 28 column 17
+IDENT Token "Intersection" found in line 28 column 23
+LPAREN Token "(" found in line 28 column 35
+INT_LIT Token "5" (5) found in line 28 column 36
+STAR Token "*" found in line 28 column 38
+IDENT Token "i" found in line 28 column 40
+COMMA Token "," found in line 28 column 41
+INT_LIT Token "15" (15) found in line 28 column 43
+RPAREN Token ")" found in line 28 column 45
+SEMI Token ";" found in line 28 column 46
+RBRACE Token "}" found in line 29 column 13
+FOR Token "for" found in line 30 column 13
+LPAREN Token "(" found in line 30 column 17
+INT Token "int" found in line 30 column 18
+IDENT Token "i" found in line 30 column 22
+ASSIGN Token "=" found in line 30 column 24
+INT_LIT Token "0" (0) found in line 30 column 26
+SEMI Token ";" found in line 30 column 27
+IDENT Token "i" found in line 30 column 29
+LT Token "<" found in line 30 column 31
+INT_LIT Token "10" (10) found in line 30 column 33
+SEMI Token ";" found in line 30 column 35
+IDENT Token "i" found in line 30 column 37
+ASSIGN Token "=" found in line 30 column 39
+IDENT Token "i" found in line 30 column 41
+PLUS Token "+" found in line 30 column 43
+INT_LIT Token "1" (1) found in line 30 column 45
+RPAREN Token ")" found in line 30 column 46
+LBRACE Token "{" found in line 30 column 48
+SPAWN Token "spawn" found in line 31 column 17
+IDENT Token "Car" found in line 31 column 23
+LPAREN Token "(" found in line 31 column 26
+RAND Token "rand" found in line 31 column 27
+LPAREN Token "(" found in line 31 column 31
+INT_LIT Token "0" (0) found in line 31 column 32
+COMMA Token "," found in line 31 column 33
+INT_LIT Token "30" (30) found in line 31 column 35
+RPAREN Token ")" found in line 31 column 37
+COMMA Token "," found in line 31 column 38
+RAND Token "rand" found in line 31 column 40
+LPAREN Token "(" found in line 31 column 44
+INT_LIT Token "0" (0) found in line 31 column 45
+COMMA Token "," found in line 31 column 46
+INT_LIT Token "30" (30) found in line 31 column 48
+RPAREN Token ")" found in line 31 column 50
+RPAREN Token ")" found in line 31 column 51
+SEMI Token ";" found in line 31 column 52
+RBRACE Token "}" found in line 32 column 13
+IDENT Token "spawned" found in line 33 column 13
+ASSIGN Token "=" found in line 33 column 21
+TRUE Token "true" found in line 33 column 23
+SEMI Token ";" found in line 33 column 27
+RBRACE Token "}" found in line 34 column 9
+RBRACE Token "}" found in line 35 column 5
+POST Token "post" found in line 37 column 5
+LBRACE Token "{" found in line 37 column 10
+RBRACE Token "}" found in line 39 column 5
+RBRACE Token "}" found in line 40 column 1
+VOID Token "void" found in line 42 column 1
+MAIN Token "main" found in line 42 column 6
+LPAREN Token "(" found in line 42 column 10
+RPAREN Token ")" found in line 42 column 11
+LBRACE Token "{" found in line 42 column 13
+REPEAT Token "repeat" found in line 43 column 5
+LBRACE Token "{" found in line 43 column 12
+STEP Token "step" found in line 44 column 9
+LPAREN Token "(" found in line 44 column 13
+RPAREN Token ")" found in line 44 column 14
+SEMI Token ";" found in line 44 column 15
+RBRACE Token "}" found in line 45 column 5
+UNTIL Token "until" found in line 45 column 7
+LPAREN Token "(" found in line 45 column 13
+IDENT Token "steps" found in line 45 column 14
+GT Token ">" found in line 45 column 20
+INT_LIT Token "200" (200) found in line 45 column 22
+RPAREN Token ")" found in line 45 column 25
+SEMI Token ";" found in line 45 column 26
+RBRACE Token "}" found in line 46 column 1
+EOF Token "" found in line 47 column 1

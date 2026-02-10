@@ -1,5 +1,4 @@
 // Resource competition: agents collect resources; resource regrows in world post; temperature influences agent energy loss.
-|
 agent Forager {
     int x, y;
     int energy = 100;

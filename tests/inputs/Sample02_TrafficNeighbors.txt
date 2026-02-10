@@ -25,7 +25,6 @@ world Street {
 
     pre {
         if (!spawned) {
-#
             for (int i = 0; i < 5; i = i + 1) {
                 spawn Intersection(5 * i, 15);
             }

@@ -1,45 +1,47 @@
-// Foragers with position and trail history (records and arrays)
-use std;
-$
-const int MAX = 100;
-type record Point { int x; int y; }
+// Traffic: cars slow down when near intersections. This version uses zone; behavior is triggered when Intersection is in radius.
+agent Intersection {
+    int x, y;
+}
 
-agent Forager {
-    Point pos;
-    int trail[5];
+agent Car {
+    int x, y;
+    int speed = 1;
+
+    zone near_intersection(2, Intersection) {
+$
+        speed = 0;
+    }
 
     update {
-        pos.x = pos.x + 1;
-        pos.y = pos.y + 1;
-        trail[0] = pos.x;
-        move(pos.x, pos.y);
+        speed = 1;
+        move(self.x + speed, self.y);
     }
 }
 
-world Nest {
-    int width = MAX;
-    int height = MAX;
-    int grid[10];
+world Street {
+    int width = 30;
+    int height = 30;
     bool spawned = false;
 
-    update {
+    pre {
         if (!spawned) {
-            Point p;
-            p.x = 0;
-            p.y = 0;
-            int arr[10];
-            arr[0] = 1;
-            for (int i = 0; i < 3; i = i + 1) {
-                spawn Forager(p, arr);
+            for (int i = 0; i < 5; i = i + 1) {
+                spawn Intersection(5 * i, 15);
+            }
+            for (int i = 0; i < 10; i = i + 1) {
+                spawn Car(rand(0, 30), rand(0, 30));
             }
             spawned = true;
         }
-        grid[0] = 0;
+    }
+
+    post {
+        // street tick
     }
 }
 
 void main() {
     repeat {
         step();
-    } until (steps > 50);
+    } until (steps > 200);
 }

@@ -25,7 +25,6 @@ world City {
 
     pre {
         if (!spawned) {
-&
             for (int i = 0; i < 20; i = i + 1) {
                 spawn Person(rand(0, 50), rand(0, 50), 0);
             }
