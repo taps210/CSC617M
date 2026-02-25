@@ -226,7 +226,7 @@ public final class Scanner {
 
         if (seenDot) {
             // literal as Double
-            Double val = Double.parseDouble(numberLexeme);
+            Double val = Double.parseDouble(normalizeFloat(numberLexeme));
             return new Token(TokenType.FLOAT_LIT, numberLexeme, val, startLine, startCol);
         } else {
             Integer val = Integer.parseInt(numberLexeme);
@@ -405,5 +405,10 @@ public final class Scanner {
 
     private static String escapeForLexeme(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static String normalizeFloat(String lexeme) {
+        if (lexeme.startsWith(".")) return "0" + lexeme;
+        return lexeme;
     }
 }
