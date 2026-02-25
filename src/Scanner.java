@@ -48,14 +48,12 @@ public final class Scanner {
             Map.entry("rand", TokenType.RAND),
             Map.entry("update", TokenType.UPDATE),
             Map.entry("destroy", TokenType.DESTROY),
+            Map.entry("zone", TokenType.ZONE),
             Map.entry("pre", TokenType.PRE),
             Map.entry("post", TokenType.POST),
-
             Map.entry("self", TokenType.SELF),
-                Map.entry("assert", TokenType.ASSERT),
-
-                Map.entry("zone", TokenType.ZONE),
-                Map.entry("radius", TokenType.RADIUS)
+            Map.entry("null", TokenType.NULL),
+            Map.entry("assert", TokenType.ASSERT)
     );
 
     // Stores entire program text in src
@@ -145,11 +143,7 @@ public final class Scanner {
             case '&' -> {
                 advance();
                 if (match('&')) yield new Token(TokenType.ANDAND, "&&", null, startLine, startCol);
-                if (errorCollector != null) {
-                    errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"&\" (did you mean \"&&\"?)"));
-                    yield nextToken(printRecoveryMessages, errorCollector);
-                }
-                throw new LexicalException("Unknown symbol \"&\" (did you mean \"&&\"?)", startLine, startCol);
+                yield new Token(TokenType.AMP, "&", null, startLine, startCol);
             }
             case '|' -> {
                 advance();

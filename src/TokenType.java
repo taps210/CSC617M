@@ -14,15 +14,14 @@ public enum TokenType {
     READ, PRINT,
     TRUE, FALSE,
     MAIN,
-    SPAWN, MOVE, STEP, NEIGHBORS, RAND, UPDATE, DESTROY,
-    PRE, POST,
+    SPAWN, MOVE, STEP, NEIGHBORS, RAND, UPDATE, DESTROY, ZONE, PRE, POST,
     SELF,
+    NULL,
     ASSERT,
-    ZONE, RADIUS,
-
 
     // Operators
     PLUS, MINUS, STAR, SLASH, MOD,
+    AMP,
     ASSIGN,
     EQEQ, NEQ, LT, LTE, GT, GTE,
     ANDAND, OROR, NOT,
