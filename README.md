@@ -10,12 +10,17 @@ Requires Java 17.
 
 On Windows: `gradlew.bat build`
 
+Or with `java` directly (classpath must point to `build/classes/java/main`):
+
+```bash
+javac -d build/classes/java/main src\src\*.java
+```
+
 **Run**
 
 From the **project root** (where `build.gradle.kts` is), after building:
 
 ```bash
-./gradlew build
 ./gradlew run --args="--print tests/inputs/Sample01_Marketplace.txt"
 ```
 
