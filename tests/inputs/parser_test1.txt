@@ -1,0 +1,92 @@
+// ALL_CONSTRUCTS.herd — hits all parser construct emits
+
+use demo.util;
+
+type Pair = record { int a; int b; };
+
+agent Foo {
+    int x = 0;
+
+    // ZONE declaration
+    zone near(2, Foo) {
+        x = x + 1;                 // Assignment statement
+    }
+
+    // UPDATE block
+    update {
+        // ABM MOVE statement
+        move(self.x + 1, self.x + 2);
+
+        // IF statement + ELSE clause
+        if (x > 0) {
+            x = x - 1;             // Assignment statement
+        } else {
+            x = x + 1;             // Assignment statement
+        }
+
+        // WHILE loop + CONTINUE statement + BREAK statement
+        while (x < 3) {
+            x = x + 1;             // Assignment statement
+            if (x == 2) {
+                continue;
+            }
+            if (x == 3) {
+                break;
+            }
+        }
+
+        // ASSERT statement
+        assert(x >= 0);
+
+        // ABM SPAWN statement
+        spawn Foo(0);
+
+        // ABM DESTROY statement (use self)
+        destroy(self);
+
+        // ABM STEP statement
+        step();
+    }
+}
+
+world SimWorld {
+    int steps = 0;
+    bool spawned = false;
+
+    // PRE block
+    pre {
+        if (!spawned) {
+            // FOR loop (with var decl init)
+            for (int i = 0; i < 2; i = i + 1) {
+                spawn Foo(i);
+            }
+            spawned = true;        // Assignment statement
+        }
+    }
+
+    // POST block
+    post {
+        steps = steps + 1;         // Assignment statement
+        // Call statement (regular function)
+        helper(steps);
+        // ABM STEP statement with argument
+        step(steps);
+    }
+}
+
+// FUNCTION declaration (non-main)
+int helper(int v) {
+    // RETURN statement
+    return v + 1;
+}
+
+void main() {
+    // REPEAT loop
+    repeat {
+        // Call statement
+        helper(1);
+
+        // ABM STEP statement
+        step();
+    } until (SimWorld.steps > 5);
+}

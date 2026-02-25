@@ -1,0 +1,24 @@
+// global_func_vs_var_test.herd
+// Tests: global var decl vs function decl when return type starts with IDENT
+
+type Foo = record { int x; };
+
+Foo g;                 // global variable declaration (IDENT IDENT ;)
+Foo* gp;               // global pointer variable declaration (IDENT * IDENT ;)
+
+Foo helperFoo() {      // function declaration with user-defined return type (IDENT IDENT '(' ...)
+    Foo local;
+    local.x = 1;
+    return local;
+}
+
+Foo* helperFooPtr() {  // function declaration with pointer return type (IDENT * IDENT '(' ...)
+    return null;
+}
+
+void main() {
+    // Just to exercise calls + assignment in main
+    g = helperFoo();
+    gp = helperFooPtr();
+    print(g.x);
+}

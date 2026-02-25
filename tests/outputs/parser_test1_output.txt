@@ -1,0 +1,36 @@
+AGENT declaration found in line 7 column 1
+ZONE declaration found in line 11 column 5
+Assignment statement found in line 12 column 9
+UPDATE block found in line 16 column 5
+ABM MOVE statement found in line 18 column 9
+IF statement found in line 21 column 9
+Assignment statement found in line 22 column 13
+ELSE clause found in line 23 column 11
+Assignment statement found in line 24 column 13
+WHILE loop found in line 28 column 9
+Assignment statement found in line 29 column 13
+IF statement found in line 30 column 13
+CONTINUE statement found in line 31 column 17
+IF statement found in line 33 column 13
+BREAK statement found in line 34 column 17
+ASSERT statement found in line 39 column 9
+ABM SPAWN statement found in line 42 column 9
+ABM DESTROY statement found in line 45 column 9
+ABM STEP statement found in line 48 column 9
+WORLD declaration found in line 52 column 1
+PRE block found in line 57 column 5
+IF statement found in line 58 column 9
+FOR loop found in line 60 column 13
+Assignment statement found in line 60 column 36
+ABM SPAWN statement found in line 61 column 17
+Assignment statement found in line 63 column 13
+POST block found in line 68 column 5
+Assignment statement found in line 69 column 9
+Call statement found in line 71 column 9
+ABM STEP statement found in line 73 column 9
+FUNCTION declaration found in line 78 column 5
+RETURN statement found in line 80 column 5
+REPEAT loop found in line 85 column 5
+Call statement found in line 87 column 9
+ABM STEP statement found in line 90 column 9
+Parse OK
