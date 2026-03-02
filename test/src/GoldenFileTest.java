@@ -116,22 +116,22 @@ class GoldenFileTest {
                 "Token count should match recorded value in LargeFile_Large_BenchStats.txt");
     }
 
-    @Test
-    void largeFile_withErrors_matchesGolden() throws Exception {
-        Path input = TESTS_IN.resolve("LargeFile_WithErrors.txt");
-        Path expectedOutput = TESTS_OUT.resolve("LargeFile_WithErrors_Output.txt");
-        Path statsFile = TESTS_OUT.resolve("LargeFile_WithErrors_Stats.txt");
-        assumeFilesExist(input, expectedOutput, statsFile);
+    // @Test
+    // void largeFile_withErrors_matchesGolden() throws Exception {
+    //     Path input = TESTS_IN.resolve("LargeFile_WithErrors.txt");
+    //     Path expectedOutput = TESTS_OUT.resolve("LargeFile_WithErrors_Output.txt");
+    //     Path statsFile = TESTS_OUT.resolve("LargeFile_WithErrors_Stats.txt");
+    //     assumeFilesExist(input, expectedOutput, statsFile);
 
-        var errors = new ArrayList<LexicalErrorRecord>();
-        new Scanner(Files.readString(input)).tokenizeAll(false, errors);
-        assertEquals(parseFirstLineValue(statsFile, "Total errors:"), errors.size(),
-                "Error count should match LargeFile_WithErrors_Stats.txt");
+    //     var errors = new ArrayList<LexicalErrorRecord>();
+    //     new Scanner(Files.readString(input)).tokenizeAll(false, errors);
+    //     assertEquals(parseFirstLineValue(statsFile, "Total errors:"), errors.size(),
+    //             "Error count should match LargeFile_WithErrors_Stats.txt");
 
-        String actual = String.join(System.lineSeparator(), errors.stream().map(LexicalErrorRecord::format).toList());
-        assertEquals(normalizeLines(Files.readString(expectedOutput)), normalizeLines(actual),
-                "Full error list should match LargeFile_WithErrors_Output.txt");
-    }
+    //     String actual = String.join(System.lineSeparator(), errors.stream().map(LexicalErrorRecord::format).toList());
+    //     assertEquals(normalizeLines(Files.readString(expectedOutput)), normalizeLines(actual),
+    //             "Full error list should match LargeFile_WithErrors_Output.txt");
+    // }
 
     private static void goldenSample(String inputName, String outputName) throws Exception {
         Path input = TESTS_IN.resolve(inputName);

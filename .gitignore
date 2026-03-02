@@ -20,3 +20,5 @@ viz/__pycache__/
 venv/
 
 *.zip
+
+/tests/outputs/*

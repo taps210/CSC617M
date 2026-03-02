@@ -416,6 +416,12 @@ public final class Parser {
     }
 
     private void statement() {
+        // Assignment starting with 'self.' (lvalue: self . IDENT lvalue_tail)
+        if (check(TokenType.SELF)) {
+            assignStmt();
+            consume(TokenType.SEMI, "Expected ';' after assignment.");
+            return;
+        }
         // Assignment starting with '*' or IDENT (lvalue)
         if (check(TokenType.STAR) || check(TokenType.IDENT)) {
             // Decide assignment vs call_stmt:
@@ -606,6 +612,12 @@ public final class Parser {
     private void lvalue() {
         if (match(TokenType.STAR)) {
             lvalue();
+            return;
+        }
+        if (match(TokenType.SELF)) {
+            consume(TokenType.DOT, "Expected '.' after self.");
+            consume(TokenType.IDENT, "Expected field name after '.'.");
+            lvalueTail();
             return;
         }
         consume(TokenType.IDENT, "Expected identifier in lvalue.");

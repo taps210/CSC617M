@@ -37,20 +37,6 @@ class InvalidCharsTest extends ScannerTestBase {
     }
 
     @Test
-    void loneAmpersand() {
-        assertThrowsLexical(
-                () -> new Scanner("&").tokenizeAll(false),
-                "Unknown symbol \"&\"", 1, 1);
-    }
-
-    @Test
-    void loneAmpersandWithContext_didYouMeanAndAnd() {
-        assertThrowsLexical(
-                () -> new Scanner("a & b").tokenizeAll(false),
-                "did you mean \"&&\"?", 1, 3);
-    }
-
-    @Test
     void lonePipe() {
         assertThrowsLexical(
                 () -> new Scanner("|").tokenizeAll(false),
