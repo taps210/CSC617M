@@ -79,6 +79,11 @@ public class EditorPanel extends JPanel implements CompileListener {
 
     public String getText() { return editor.getText(); }
 
+    public void setText(String text) {
+        editor.setText(text != null ? text : "");
+        errorHighlighter.clear();
+    }
+
     public void setCaretToLine(int line) {
         try {
             javax.swing.text.Document doc = editor.getDocument();

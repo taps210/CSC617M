@@ -2,8 +2,8 @@ package src.gui;
 
 import src.gui.analysis.AnalysisWindow;
 import src.gui.core.CompileController;
+import src.gui.core.EditorFileHandler;
 import src.gui.editor.EditorPanel;
-import src.gui.output.ErrorsPanel;
 import src.gui.output.OutputTabbedPane;
 import src.gui.output.StatusBar;
 
@@ -19,9 +19,9 @@ public class HerdIDE extends JFrame {
     private final OutputTabbedPane outputTabs;
     private final StatusBar statusBar;
     private final AnalysisWindow analysisWindow;
+    private final EditorFileHandler fileHandler;
 
     public HerdIDE() {
-        setTitle("Herd IDE");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1000, 700);
 
@@ -41,6 +41,9 @@ public class HerdIDE extends JFrame {
             if (err != null) editorPanel.setCaretToLineAndColumn(err.line(), err.col());
         });
 
+        fileHandler = new EditorFileHandler(this, editorPanel::getText, editorPanel::setText, this::updateWindowTitle);
+        updateWindowTitle();
+
         buildMenuBar();
         JPanel content = new JPanel(new BorderLayout());
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, editorPanel, outputTabs);
@@ -50,14 +53,31 @@ public class HerdIDE extends JFrame {
         setContentPane(content);
     }
 
+    private void updateWindowTitle() {
+        var f = fileHandler.getCurrentFile();
+        setTitle(f == null ? "Herd IDE" : "Herd IDE - " + f.getName());
+    }
+
     private void buildMenuBar() {
         JMenuBar bar = new JMenuBar();
         JMenu fileMenu = new JMenu("File");
+        JMenuItem openItem = new JMenuItem("Open");
+        openItem.setAccelerator(KeyStroke.getKeyStroke("control O"));
+        openItem.addActionListener(e -> fileHandler.open());
+        JMenuItem saveItem = new JMenuItem("Save");
+        saveItem.setAccelerator(KeyStroke.getKeyStroke("control S"));
+        saveItem.addActionListener(e -> fileHandler.save());
+        JMenuItem saveAsItem = new JMenuItem("Save As");
+        saveAsItem.addActionListener(e -> fileHandler.saveAs());
         JMenuItem runItem = new JMenuItem("Run");
         runItem.setAccelerator(KeyStroke.getKeyStroke("control ENTER"));
         runItem.addActionListener(e -> editorPanel.run());
         JMenuItem analyzeItem = new JMenuItem("Analyze");
         analyzeItem.addActionListener(e -> openAnalysis());
+        fileMenu.add(openItem);
+        fileMenu.add(saveItem);
+        fileMenu.add(saveAsItem);
+        fileMenu.addSeparator();
         fileMenu.add(runItem);
         fileMenu.add(analyzeItem);
         bar.add(fileMenu);
