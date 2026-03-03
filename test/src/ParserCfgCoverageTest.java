@@ -2,6 +2,12 @@ package src;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * Tests derived from herd_cfg_reference.md. Each test corresponds to a CFG rule or
  * invalid example from that document. This suite ensures parser coverage is traceable to the grammar.
@@ -350,5 +356,22 @@ class ParserCfgCoverageTest extends ParserTestBase {
     @Test
     void assert_ptrNotNull_success() {
         assertParseSuccess("int* ptr = null; void main() { assert(ptr != null); }");
+    }
+
+    /** Parses examples/all_constructs.hd and asserts success; file exercises all CFG constructs. */
+    @Test
+    void allConstructsFile_parseSuccess() throws Exception {
+        Path file = PROJECT_ROOT.resolve("examples").resolve("all_constructs.hd");
+        if (!Files.exists(file)) {
+            throw new AssertionError("Missing file: " + file.toAbsolutePath());
+        }
+        String src = Files.readString(file);
+        List<Token> tokens = new Scanner(src).tokenizeAll(false);
+        StringBuilder trace = new StringBuilder();
+        Parser parser = new Parser(tokens, trace);
+        parser.parseProgram();
+        trace.append("Parse OK").append(System.lineSeparator());
+        assertTrue(trace.toString().contains("Parse OK"), "Expected Parse OK in trace");
+        assertTrue(parser.getConstructCount() >= 20, "Expected many constructs to be recognized");
     }
 }

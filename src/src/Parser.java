@@ -157,6 +157,7 @@ public final class Parser {
     // -------------------------
     private void useList() {
         while (match(TokenType.USE)) {
+            emit("USE statement", previous());
             filename();
             consume(TokenType.SEMI, "Expected ';' after use filename.");
         }
@@ -180,6 +181,7 @@ public final class Parser {
 
     private void typeDecl() {
         if (match(TokenType.TYPE)) {
+            emit("Type alias declaration", previous());
             consume(TokenType.IDENT, "Expected type name after 'type'.");
             consume(TokenType.ASSIGN, "Expected '=' after type name.");
             recordType();
@@ -304,9 +306,11 @@ public final class Parser {
     }
 
     private void varDecl() {
+        Token start = peek();
         dataType();
         declaratorList();
         consume(TokenType.SEMI, "Expected ';' after variable declaration.");
+        emit("Variable declaration", start);
     }
 
     private void declaratorList() {
