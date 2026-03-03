@@ -28,6 +28,13 @@ application {
     mainClass.set("src.Main")
 }
 
+tasks.register<JavaExec>("runIDE") {
+    group = "application"
+    description = "Run Herd IDE"
+    mainClass.set("src.gui.HerdIDE")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
 dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -8,14 +8,20 @@ public final class Parser {
     private final Appendable out;
     private boolean trace = true;
     private int current = 0;
+    private int constructCount = 0;
 
     public Parser(List<Token> tokens, Appendable out) {
         this.tokens = tokens;
         this.out = out;
     }
 
+    public int getConstructCount() {
+        return constructCount;
+    }
+
     // emit the construct found at the current token.
     private void emit(String construct, Token at) {
+        constructCount++;
         if (!trace) return;
         try {
             out.append(construct)
@@ -395,7 +401,8 @@ public final class Parser {
 
     private void mainFunction() {
         consume(TokenType.VOID, "Expected 'void' for main.");
-        consume(TokenType.MAIN, "Expected 'main'.");
+        Token mainTok = consume(TokenType.MAIN, "Expected 'main'.");
+        emit("MAIN function", mainTok);
         consume(TokenType.LPAREN, "Expected '(' after main.");
         consume(TokenType.RPAREN, "Expected ')' after main.");
         block();
