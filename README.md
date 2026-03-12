@@ -21,19 +21,46 @@ javac -d build/classes/java/main src\src\*.java
 From the **project root** (where `build.gradle.kts` is), after building:
 
 ```bash
-./gradlew run --args="--print tests/inputs/Sample01_Marketplace.txt"
+# Scan only (print tokens to stdout)
+./gradlew run --args="--scan tests/inputs/Sample01_Marketplace.txt"
+
+# Parse (scan + parse, trace to stdout)
+./gradlew run --args="--parse tests/inputs/Sample01_Marketplace.txt"
+
+# Semantic (scan + parse + semantic analysis)
+./gradlew run --args="--semantic tests/inputs/Sample01_Marketplace.txt"
 ```
 
 Or with `java` directly (classpath must point to `build/classes/java/main`):
 
 ```bash
-java -cp build/classes/java/main src.Main --print tests/inputs/Sample01_Marketplace.txt
-java -cp build/classes/java/main src.Main --out <outputFile> <inputFile>
+# Scan
+java -cp build/classes/java/main src.Main --scan <inputFile>
+java -cp build/classes/java/main src.Main --scan --out <outputFile> <inputFile>
+
+# Parse
+java -cp build/classes/java/main src.Main --parse <inputFile>
+java -cp build/classes/java/main src.Main --parse --out <outputFile> <inputFile>
+
+# Semantic
+java -cp build/classes/java/main src.Main --semantic <inputFile>
+java -cp build/classes/java/main src.Main --semantic --out <outputFile> <inputFile>
+
+# Benchmark (scan only)
 java -cp build/classes/java/main src.Main --bench <inputFile>
-java -cp build/classes/java/main src.Main --collect-errors <inputFile> [outputFile]
 ```
 
 If you see "Could not find or load main class src.Main", run from the project root and run `./gradlew build` first.
+
+**Herd IDE**
+
+Run the graphical IDE (editor, compile, AST/parse tree tabs, errors):
+
+```bash
+./gradlew runIDE
+```
+
+On Windows: `gradlew.bat runIDE`
 
 **Tests**
 

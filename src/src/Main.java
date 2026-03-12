@@ -2,12 +2,13 @@ package src;
 
 import src.errors.LexicalErrorRecord;
 import src.errors.ParseException;
+import src.Ast.ProgramNode;
+import src.errors.SemanticError;
+import src.semantic.SemanticAnalyzer;
 
-import java.io.BufferedWriter;
 import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 public final class Main {
@@ -16,64 +17,50 @@ public final class Main {
         if (args.length < 2) {
             System.out.println("""
                     Usage:
-                        java -cp build/classes/java/main src.Main --print tests/inputs/Sample01_Marketplace.txt
-                        java -cp build/classes/java/main src.Main --out <outputFile> <inputFile>
+                        java -cp build/classes/java/main src.Main --scan <inputFile>
+                        java -cp build/classes/java/main src.Main --scan --out <outputFile> <inputFile>
+                        java -cp build/classes/java/main src.Main --parse <inputFile>
+                        java -cp build/classes/java/main src.Main --parse --out <outputFile> <inputFile>
+                        java -cp build/classes/java/main src.Main --semantic <inputFile>
+                        java -cp build/classes/java/main src.Main --semantic --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --bench <inputFile>
-                        java -cp build/classes/java/main src.Main --collect-errors <inputFile> [outputFile]
-
-                        java -cp build/classes/java/main src.Main --parse-print <inputFile>
-                        java -cp build/classes/java/main src.Main --parse-out <outputFile> <inputFile>
                     """);
             return;
         }
 
-        switch (args[0]) {
-            case "--print" -> runPrint(args[1]);
-
-            case "--out" -> {
-                if (args.length < 3) {
-                    System.out.println("Missing output or input file.");
-                    return;
-                }
-                runFile(args[1], args[2]);
+        String mode = args[0];
+        int i = 1;
+        String outFile = null;
+        if (i < args.length && args[i].equals("--out")) {
+            if (mode.equals("--bench")) {
+                System.out.println("--bench does not use --out.");
+                return;
             }
-
-            case "--bench" -> runBench(args[1]);
-
-            case "--collect-errors" -> {
-                String outFile = args.length >= 3 ? args[2] : null;
-                runCollectErrors(args[1], outFile);
+            i++;
+            if (i >= args.length) {
+                System.out.println("Missing output file after --out.");
+                return;
             }
+            outFile = args[i++];
+        }
+        if (i >= args.length) {
+            System.out.println("Missing input file.");
+            return;
+        }
+        String inFile = args[i];
 
-            case "--parse-print" -> runParsePrint(args[1]);
-
-            case "--parse-out" -> {
-                if (args.length < 3) {
-                    System.out.println("Missing output or input file.");
-                    return;
-                }
-                runParseOut(args[1], args[2]);
-            }
-
-            default -> System.out.println("Unknown option: " + args[0]);
+        switch (mode) {
+            case "--scan" -> runScan(inFile, outFile);
+            case "--parse" -> runParse(inFile, outFile);
+            case "--semantic" -> runSemantic(inFile, outFile);
+            case "--bench" -> runBench(inFile);
+            default -> System.out.println("Unknown option: " + mode);
         }
     }
 
-    // ---------------- SCANNER MODES ----------------
+    // ---------------- SCANNER MODE ----------------
 
-    private static void runPrint(String inputFile) throws Exception {
-        String srcText = Files.readString(Path.of(inputFile));
-        var scanner = new Scanner(srcText);
-
-        try {
-            List<Token> tokens = scanner.tokenizeAll(true);
-            tokens.forEach(System.out::println);
-        } catch (LexicalErrorRecord.ScanAbortedException e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
-    private static void runFile(String outputFile, String inputFile) throws Exception {
+    private static void runScan(String inputFile, String outputFile) throws Exception {
         String srcText = Files.readString(Path.of(inputFile));
         var scanner = new Scanner(srcText);
 
@@ -85,8 +72,13 @@ public final class Main {
             sb.append(e.getMessage()).append(System.lineSeparator());
         }
 
-        Files.writeString(Path.of(outputFile), sb.toString());
-        System.out.println("Wrote token dump to: " + outputFile);
+        String result = sb.toString();
+        if (outputFile != null) {
+            Files.writeString(Path.of(outputFile), result);
+            System.out.println("Wrote token dump to: " + outputFile);
+        } else {
+            System.out.print(result);
+        }
     }
 
     private static void runBench(String inputFile) throws Exception {
@@ -110,63 +102,85 @@ public final class Main {
         System.out.println("Elapsed: " + Duration.between(t0, t1).toMillis() + " ms");
     }
 
-    private static void runCollectErrors(String inputFile, String outputFile) throws Exception {
+    // ---------------- PARSER MODE ----------------
+
+    private static void runParse(String inputFile, String outputFile) throws Exception {
         String srcText = Files.readString(Path.of(inputFile));
         var scanner = new Scanner(srcText);
-        var errors = new ArrayList<LexicalErrorRecord>();
 
+        Appendable out = outputFile != null ? new StringBuilder() : System.out;
         try {
-            scanner.tokenizeAll(false, errors);
+            List<Token> tokens = scanner.tokenizeAll(false);
+            var parser = new Parser(tokens, out);
+            parser.parseProgram();
+            if (outputFile != null) {
+                ((StringBuilder) out).append("Parse OK").append(System.lineSeparator());
+                Files.writeString(Path.of(outputFile), out.toString());
+                System.out.println("Wrote parse dump to: " + outputFile);
+            } else {
+                System.out.println("Parse OK");
+            }
         } catch (LexicalErrorRecord.ScanAbortedException e) {
-            if (e.getError() != null) errors.add(e.getError());
+            String msg = e.getMessage();
+            if (outputFile != null) {
+                Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
+                System.out.println("Wrote parse dump to: " + outputFile);
+            } else {
+                System.out.println(msg);
+            }
+        } catch (ParseException e) {
+            String msg = e.getMessage();
+            if (outputFile != null) {
+                Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
+                System.out.println("Wrote parse dump to: " + outputFile);
+            } else {
+                System.out.println(msg);
+            }
+        }
+    }
+
+    // ---------------- SEMANTIC MODE ----------------
+
+    private static void runSemantic(String inputFile, String outputFile) throws Exception {
+        String srcText = Files.readString(Path.of(inputFile));
+        var scanner = new Scanner(srcText);
+
+        List<Token> tokens;
+        try {
+            tokens = scanner.tokenizeAll(false);
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
+            String msg = e.getMessage();
+            if (outputFile != null) Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
+            else System.out.println(msg);
+            return;
         }
 
-        var lines = errors.stream().map(LexicalErrorRecord::format).toList();
-        String result = String.join(System.lineSeparator(), lines);
+        ProgramNode ast;
+        try {
+            var parser = new Parser(tokens, new StringBuilder());
+            ast = parser.parseProgramToAst();
+        } catch (ParseException e) {
+            String msg = e.getMessage();
+            if (outputFile != null) Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
+            else System.out.println(msg);
+            return;
+        }
+
+        List<SemanticError> errors = new SemanticAnalyzer().analyze(ast);
+        String result;
+        if (errors.isEmpty()) {
+            result = "Semantic OK" + System.lineSeparator();
+        } else {
+            result = errors.stream()
+                    .map(e -> e.line() + ":" + e.col() + " " + e.message())
+                    .reduce("", (a, b) -> a + b + System.lineSeparator());
+        }
 
         if (outputFile != null) {
             Files.writeString(Path.of(outputFile), result);
-            System.out.println("Wrote " + errors.size() + " error(s) to: " + outputFile);
+            System.out.println("Wrote semantic result to: " + outputFile);
         } else {
-            lines.forEach(System.out::println);
+            System.out.print(result);
         }
-    }
-
-    // ---------------- PARSER MODES ----------------
-
-    private static void runParsePrint(String inputFile) throws Exception {
-        String srcText = Files.readString(Path.of(inputFile));
-        var scanner = new Scanner(srcText);
-
-        try {
-            List<Token> tokens = scanner.tokenizeAll(false); // lexer first (no recovery prints)
-            var parser = new Parser(tokens, System.out);
-            parser.parseProgram();
-            System.out.println("Parse OK");
-        } catch (LexicalErrorRecord.ScanAbortedException e) {
-            System.out.println(e.getMessage());
-        } catch (ParseException e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
-    private static void runParseOut(String outputFile, String inputFile) throws Exception {
-        String srcText = Files.readString(Path.of(inputFile));
-        var scanner = new Scanner(srcText);
-
-        try (BufferedWriter w = Files.newBufferedWriter(Path.of(outputFile))) {
-            try {
-                List<Token> tokens = scanner.tokenizeAll(false);
-                var parser = new Parser(tokens, w);
-                parser.parseProgram();
-                w.write("Parse OK" + System.lineSeparator());
-            } catch (LexicalErrorRecord.ScanAbortedException e) {
-                w.write(e.getMessage() + System.lineSeparator());
-            } catch (ParseException e) {
-                w.write(e.getMessage() + System.lineSeparator());
-            }
-        }
-
-        System.out.println("Wrote parse dump to: " + outputFile);
     }
 }
