@@ -22,3 +22,5 @@ venv/
 *.zip
 
 /tests/outputs/*
+
+/docs/
