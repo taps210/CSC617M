@@ -1,17 +1,21 @@
 package src.gui.core;
 
-import src.LexicalErrorRecord;
-import src.LexicalException;
-import src.ParseException;
+import src.errors.LexicalErrorRecord;
+import src.errors.ParseException;
+import src.errors.SemanticError;
 import src.Parser;
 import src.Scanner;
 import src.Token;
 import src.TokenType;
+import static src.Ast.*;
 import src.gui.model.CompileError;
+import src.parsetree.ParseTreeNode;
 import src.gui.model.CompileMetrics;
+import src.semantic.SemanticAnalyzer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -71,14 +75,8 @@ public class CompileController {
         try {
             Scanner scanner = new Scanner(sourceText);
             tokens = scanner.tokenizeAll(false, lexErrors);
-        } catch (LexicalException e) {
-            String msg = e.getMessage();
-            if (msg != null && msg.contains("\n")) {
-                msg = msg.substring(msg.indexOf('\n') + 1).trim();
-            } else if (msg != null && msg.contains(":")) {
-                msg = msg.substring(msg.indexOf(':') + 1).trim();
-            }
-            lexErrors.add(new LexicalErrorRecord(e.line, e.col, msg != null ? msg : e.getMessage()));
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
+            if (e.getError() != null) lexErrors.add(e.getError());
         }
         long t1 = System.nanoTime();
         metrics.scanTimeNs = t1 - t0;
@@ -91,6 +89,8 @@ public class CompileController {
         }
 
         String parserTrace = "";
+        Optional<ProgramNode> ast = Optional.empty();
+        Optional<ParseTreeNode> parseTree = Optional.empty();
         if (!tokens.isEmpty()) {
             StringBuilder trace = new StringBuilder();
             long p0 = System.nanoTime();
@@ -98,6 +98,8 @@ public class CompileController {
             try {
                 parser.parseProgram();
                 trace.append("Parse OK").append(System.lineSeparator());
+                ast = Optional.ofNullable(parser.getProgramNode());
+                parseTree = Optional.ofNullable(parser.getParseTreeRoot());
             } catch (ParseException e) {
                 allErrors.add(new CompileError(e.line, e.col, e.getMessage(), CompileError.Source.PARSER, CompileError.Severity.ERROR));
                 trace.append("Parse error: ").append(e.getMessage()).append(System.lineSeparator());
@@ -107,11 +109,19 @@ public class CompileController {
             metrics.parseNodeCount = parser.getConstructCount();
             metrics.parseErrorCount = (int) allErrors.stream().filter(err -> err.source() == CompileError.Source.PARSER).count();
             parserTrace = trace.toString();
+
+            // Semantic analysis after successful parse when AST is present
+            if (ast.isPresent()) {
+                List<SemanticError> semanticErrors = new SemanticAnalyzer().analyze(ast.get());
+                for (SemanticError se : semanticErrors) {
+                    allErrors.add(se.toCompileError());
+                }
+            }
         }
 
         metrics.parseWarningCount = 0; // v1: no warnings from parser
 
-        CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics);
+        CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics, ast, parseTree);
         this.lastResult = result;
         for (CompileListener l : listeners) {
             l.onCompileComplete(result);

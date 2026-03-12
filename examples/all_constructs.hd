@@ -1,0 +1,94 @@
+// All-constructs Herd demo: exercises every construct from the CFG reference.
+
+use std.net;
+use std.math.utils;
+
+
+agent Iron {
+    int x;
+    int y;
+    float energy;
+    zone active(energy > 0.0, grid) {
+        step(1);
+    }
+    update {
+        int n;
+        float r;
+        self.x = 0;
+        self.y = 0;
+        n = neighbors();
+        r = rand(0, 1);
+        doNothing();
+        if (energy > 0.0) {
+            move(self.x + 1, self.y);
+        } else {
+            move(self.x, self.y, 0);
+        }
+        for (int i = 0; i < 5; i = i + 1) {
+            step(1);
+            break;
+        }
+        while (false) {
+            continue;
+        }
+        repeat { step(); } until (energy <= 0.0);
+        spawn Ant();
+        if (energy < 0.0) { destroy(self); }
+        read(self.x);
+        print(self.x);
+        assert(energy >= 0.0);
+    }
+}
+
+world Grid {
+    int width;
+    int height;
+    pre { width = 10; height = 10; }
+    post {
+        spawn Ant();
+        print(width);
+    }
+}
+
+const MAX = 100;
+const PI = 3.14;
+const FLAG = true;
+
+int g;
+int arr[10];
+float* ptr = null;
+
+void doNothing() {
+}
+
+int add(int a, int b) {
+    return a + b;
+}
+
+void main() {
+    int x;
+    int y;
+    g = 42;
+    x = add(1, 2);
+    if (x > 0) {
+        print(x);
+    } else {
+        print(0);
+    }
+    for (int i = 0; i < 10; i = i + 1) {
+        if (i >= 5) { break; }
+        continue;
+    }
+    while (x > 0) {
+        x = x - 1;
+    }
+    repeat { x = x + 1; } until (x >= 10);
+    assert(x >= 0);
+    read(y);
+    print("done");
+    spawn Ant();
+    {
+        int z = 0;
+        z = z + 1;
+    }
+}

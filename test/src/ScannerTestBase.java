@@ -1,5 +1,6 @@
 package src;
 
+import src.errors.LexicalErrorRecord;
 import org.junit.jupiter.api.function.Executable;
 
 import java.nio.file.Files;
@@ -27,13 +28,15 @@ public abstract class ScannerTestBase {
     }
 
     protected void assertThrowsLexical(Executable executable, String messageSubstring, int expectedLine, int expectedCol) {
-        LexicalException e = assertThrows(LexicalException.class, executable);
+        LexicalErrorRecord.ScanAbortedException e = assertThrows(LexicalErrorRecord.ScanAbortedException.class, executable);
+        LexicalErrorRecord err = e.getError();
+        assertNotNull(err, "ScanAbortedException should carry an error when thrown without a list");
         String msg = e.getMessage();
         assertTrue(msg.contains(messageSubstring), "Message should contain: " + messageSubstring + ", got: " + msg);
         assertTrue(msg.contains("line " + expectedLine), "Message should contain line " + expectedLine + ", got: " + msg);
         assertTrue(msg.contains("column " + expectedCol), "Message should contain column " + expectedCol + ", got: " + msg);
-        assertEquals(expectedLine, e.line);
-        assertEquals(expectedCol, e.col);
+        assertEquals(expectedLine, err.line());
+        assertEquals(expectedCol, err.col());
     }
 
     protected Path testsIn() {

@@ -39,7 +39,7 @@ class GoldenFileTest {
         assumeFilesExist(input, expected);
 
         String src = Files.readString(input);
-        LexicalException e = assertThrows(LexicalException.class, () -> new Scanner(src).tokenizeAll(false));
+        LexicalErrorRecord.ScanAbortedException e = assertThrows(LexicalErrorRecord.ScanAbortedException.class, () -> new Scanner(src).tokenizeAll(false));
         String expectedStr = Files.readString(expected);
         assertEquals(normalizeLines(expectedStr), normalizeLines(e.getMessage()));
     }
@@ -51,7 +51,7 @@ class GoldenFileTest {
         assumeFilesExist(input, expected);
 
         String src = Files.readString(input);
-        LexicalException e = assertThrows(LexicalException.class, () -> new Scanner(src).tokenizeAll(false));
+        LexicalErrorRecord.ScanAbortedException e = assertThrows(LexicalErrorRecord.ScanAbortedException.class, () -> new Scanner(src).tokenizeAll(false));
         String expectedStr = Files.readString(expected);
         assertEquals(normalizeLines(expectedStr), normalizeLines(e.getMessage()));
     }

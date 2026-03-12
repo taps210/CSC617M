@@ -1,5 +1,7 @@
 package src;
 
+import src.errors.LexicalErrorRecord;
+
 import java.util.*;
 
 public final class Scanner {
@@ -72,10 +74,15 @@ public final class Scanner {
      */
     public List<Token> tokenizeAll(boolean printRecoveryMessages, List<LexicalErrorRecord> errorCollector) {
         var out = new ArrayList<Token>();
-        while (true) {
-            var t = nextToken(printRecoveryMessages, errorCollector);
-            out.add(t);
-            if (t.type() == TokenType.EOF) break;
+        try {
+            while (true) {
+                var t = nextToken(printRecoveryMessages, errorCollector);
+                out.add(t);
+                if (t.type() == TokenType.EOF) break;
+            }
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
+            if (errorCollector != null && e.getError() != null) errorCollector.add(e.getError());
+            throw e;
         }
         return out;
     }
@@ -152,7 +159,7 @@ public final class Scanner {
                     errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"|\" (did you mean \"||\"?)"));
                     yield nextToken(printRecoveryMessages, errorCollector);
                 }
-                throw new LexicalException("Unknown symbol \"|\" (did you mean \"||\"?)", startLine, startCol);
+                throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"|\" (did you mean \"||\"?)"));
             }
 
             case '+' -> { advance(); yield new Token(TokenType.PLUS, "+", null, startLine, startCol); }
@@ -181,7 +188,7 @@ public final class Scanner {
                     errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"%s\"".formatted(c)));
                     yield nextToken(printRecoveryMessages, errorCollector);
                 }
-                throw new LexicalException("Unknown symbol \"%s\"".formatted(c), startLine, startCol);
+                throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"%s\"".formatted(c)));
             }
         };
     }
@@ -244,11 +251,10 @@ public final class Scanner {
         while (!isAtEnd() && peek() != '"') {
             char c = advance();
             if (c == '\n') {
-                // newline before closing quote -> unterminated
-                throw new LexicalException("Unterminated string constant", startLine, startCol);
+                throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unterminated string constant"));
             }
             if (c == '\\') {
-                if (isAtEnd()) throw new LexicalException("Unterminated string constant", startLine, startCol);
+                if (isAtEnd()) throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unterminated string constant"));
                 char esc = advance();
                 sb.append(switch (esc) {
                     case 'n' -> '\n';
@@ -264,7 +270,7 @@ public final class Scanner {
             }
         }
 
-        if (isAtEnd()) throw new LexicalException("Unterminated string constant", startLine, startCol);
+        if (isAtEnd()) throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unterminated string constant"));
 
         advance(); // closing "
         String literal = sb.toString();
@@ -278,13 +284,13 @@ public final class Scanner {
 
         advance(); // opening '
         if (isAtEnd() || peek() == '\n') {
-            throw new LexicalException("Unterminated character constant", startLine, startCol);
+            throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unterminated character constant"));
         }
 
         char value;
         char c = advance();
         if (c == '\\') {
-            if (isAtEnd()) throw new LexicalException("Unterminated character constant", startLine, startCol);
+            if (isAtEnd()) throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unterminated character constant"));
             char esc = advance();
             value = switch (esc) {
                 case 'n' -> '\n';
@@ -300,7 +306,7 @@ public final class Scanner {
         }
 
         if (isAtEnd() || peek() != '\'') {
-            throw new LexicalException("Unterminated character constant", startLine, startCol);
+            throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unterminated character constant"));
         }
 
         advance(); // closing '

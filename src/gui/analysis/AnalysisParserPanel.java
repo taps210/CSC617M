@@ -4,11 +4,12 @@ import src.gui.core.CompileResult;
 import src.gui.model.CompileMetrics;
 
 import javax.swing.*;
+import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
 import java.util.LinkedHashMap;
 
 /**
- * Top: parser trace text (v1). Bottom: MetricsCard with parser metrics (fixed height for consistent layout).
+ * Tabbed view: Trace (parser trace text) | AST (JTree from ProgramNode) | Parse tree (JTree from ParseTreeNode). Bottom: MetricsCard with parser metrics.
  */
 public class AnalysisParserPanel extends JPanel {
     private static String formatTimeNs(long ns) {
@@ -16,6 +17,8 @@ public class AnalysisParserPanel extends JPanel {
         return String.format("%.0f μs", ns / 1_000.0);
     }
     private final JTextArea traceArea;
+    private final JTree astTree;
+    private final JTree parseTree;
     private final JPanel metricsPanel;
 
     public AnalysisParserPanel() {
@@ -23,7 +26,17 @@ public class AnalysisParserPanel extends JPanel {
         traceArea = new JTextArea();
         traceArea.setEditable(false);
         traceArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        add(new JScrollPane(traceArea), BorderLayout.CENTER);
+        astTree = new JTree();
+        astTree.setShowsRootHandles(true);
+        astTree.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        parseTree = new JTree();
+        parseTree.setShowsRootHandles(true);
+        parseTree.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Trace", new JScrollPane(traceArea));
+        tabs.addTab("AST", new JScrollPane(astTree));
+        tabs.addTab("Parse tree", new JScrollPane(parseTree));
+        add(tabs, BorderLayout.CENTER);
         metricsPanel = new JPanel(new BorderLayout());
         metricsPanel.setPreferredSize(new Dimension(0, AnalysisSourcePanel.METRICS_ROW_HEIGHT));
         metricsPanel.setMinimumSize(new Dimension(0, AnalysisSourcePanel.METRICS_ROW_HEIGHT));
@@ -35,6 +48,20 @@ public class AnalysisParserPanel extends JPanel {
         if (result == null) return;
         traceArea.setText(result.parserTrace() != null ? result.parserTrace() : "");
         traceArea.setCaretPosition(0);
+        if (result.ast().isPresent()) {
+            DefaultTreeModel model = AstTreeModel.from(result.ast().get());
+            astTree.setModel(model);
+            for (int i = 0; i < astTree.getRowCount(); i++) astTree.expandRow(i);
+        } else {
+            astTree.setModel(new DefaultTreeModel(new javax.swing.tree.DefaultMutableTreeNode("AST not available (parse failed or no parse run).")));
+        }
+        if (result.parseTree().isPresent()) {
+            DefaultTreeModel ptModel = ParseTreeToTreeModel.from(result.parseTree().get());
+            parseTree.setModel(ptModel);
+            for (int i = 0; i < parseTree.getRowCount(); i++) parseTree.expandRow(i);
+        } else {
+            parseTree.setModel(new DefaultTreeModel(new javax.swing.tree.DefaultMutableTreeNode("Parse tree not available (parse failed or no parse run).")));
+        }
         CompileMetrics m = result.metrics();
         metricsPanel.removeAll();
         if (m != null) {

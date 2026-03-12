@@ -7,7 +7,7 @@ import javax.swing.*;
 import java.awt.*;
 
 /**
- * v1: Read-only JTextArea showing parser trace. Later replace with JTree when AST exists.
+ * v1: Read-only JTextArea showing parser trace. Parse tree is shown in the Analysis window.
  */
 public class ParserOutputPanel extends JScrollPane implements CompileListener {
     private static final String PLACEHOLDER = "(Parser output will appear here after Run. Use valid Herd code to see trace.)";

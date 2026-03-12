@@ -1,5 +1,8 @@
 package src;
 
+import src.errors.LexicalErrorRecord;
+import src.errors.ParseException;
+
 import java.io.BufferedWriter;
 import java.nio.file.*;
 import java.time.Duration;
@@ -65,7 +68,7 @@ public final class Main {
         try {
             List<Token> tokens = scanner.tokenizeAll(true);
             tokens.forEach(System.out::println);
-        } catch (LexicalException e) {
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
             System.out.println(e.getMessage());
         }
     }
@@ -78,7 +81,7 @@ public final class Main {
         try {
             List<Token> tokens = scanner.tokenizeAll(true);
             for (var t : tokens) sb.append(t).append(System.lineSeparator());
-        } catch (LexicalException e) {
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
             sb.append(e.getMessage()).append(System.lineSeparator());
         }
 
@@ -98,7 +101,7 @@ public final class Main {
                 count++;
                 if (t.type() == TokenType.EOF) break;
             }
-        } catch (LexicalException e) {
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
             // for bench, just stop on error
         }
         Instant t1 = Instant.now();
@@ -114,14 +117,8 @@ public final class Main {
 
         try {
             scanner.tokenizeAll(false, errors);
-        } catch (LexicalException e) {
-            // Non-recoverable error (e.g. unterminated string); add it and stop
-            errors.add(new LexicalErrorRecord(
-                    e.line, e.col,
-                    e.getMessage().contains("\n")
-                            ? e.getMessage().substring(e.getMessage().indexOf('\n') + 1).trim()
-                            : e.getMessage()
-            ));
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
+            if (e.getError() != null) errors.add(e.getError());
         }
 
         var lines = errors.stream().map(LexicalErrorRecord::format).toList();
@@ -146,7 +143,7 @@ public final class Main {
             var parser = new Parser(tokens, System.out);
             parser.parseProgram();
             System.out.println("Parse OK");
-        } catch (LexicalException e) {
+        } catch (LexicalErrorRecord.ScanAbortedException e) {
             System.out.println(e.getMessage());
         } catch (ParseException e) {
             System.out.println(e.getMessage());
@@ -163,7 +160,7 @@ public final class Main {
                 var parser = new Parser(tokens, w);
                 parser.parseProgram();
                 w.write("Parse OK" + System.lineSeparator());
-            } catch (LexicalException e) {
+            } catch (LexicalErrorRecord.ScanAbortedException e) {
                 w.write(e.getMessage() + System.lineSeparator());
             } catch (ParseException e) {
                 w.write(e.getMessage() + System.lineSeparator());

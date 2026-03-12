@@ -1,5 +1,6 @@
 package src;
 
+import src.errors.ParseException;
 import org.junit.jupiter.api.function.Executable;
 
 import java.nio.file.Files;

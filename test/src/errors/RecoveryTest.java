@@ -1,7 +1,6 @@
 package src.errors;
 
 import org.junit.jupiter.api.Test;
-import src.LexicalErrorRecord;
 import src.Scanner;
 import src.ScannerTestBase;
 import src.Token;

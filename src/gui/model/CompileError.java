@@ -11,6 +11,6 @@ public record CompileError(
         Source source,
         Severity severity
 ) {
-    public enum Source { LEXER, PARSER }
+    public enum Source { LEXER, PARSER, SEMANTIC }
     public enum Severity { ERROR, WARN }
 }

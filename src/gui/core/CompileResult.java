@@ -1,13 +1,16 @@
 package src.gui.core;
 
 import src.Token;
+import static src.Ast.*;
 import src.gui.model.CompileError;
 import src.gui.model.CompileMetrics;
+import src.parsetree.ParseTreeNode;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Full bundle from a compile: source, tokens, parser trace, errors, metrics.
+ * Full bundle from a compile: source, tokens, parser trace, errors, metrics, optional AST, optional parse tree.
  * Populated only by CompileController; read-only for views.
  */
 public record CompileResult(
@@ -15,5 +18,13 @@ public record CompileResult(
         List<Token> tokens,
         String parserTrace,
         List<CompileError> errors,
-        CompileMetrics metrics
-) {}
+        CompileMetrics metrics,
+        Optional<ProgramNode> ast,
+        Optional<ParseTreeNode> parseTree
+) {
+    /** Legacy constructor without AST or parse tree (uses Optional.empty()). */
+    public CompileResult(String sourceText, List<Token> tokens, String parserTrace,
+                         List<CompileError> errors, CompileMetrics metrics) {
+        this(sourceText, tokens, parserTrace, errors, metrics, Optional.empty(), Optional.empty());
+    }
+}

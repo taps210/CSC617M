@@ -1,6 +1,13 @@
 package src;
 
+import static src.Ast.*;
+import src.errors.ParseException;
+import src.parsetree.ParseTreeNode;
+import src.parsetree.ParseTreeKind;
+import src.parsetree.ParseTreeToAst;
+
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class Parser {
@@ -19,7 +26,6 @@ public final class Parser {
         return constructCount;
     }
 
-    // emit the construct found at the current token.
     private void emit(String construct, Token at) {
         constructCount++;
         if (!trace) return;
@@ -33,15 +39,51 @@ public final class Parser {
         }
     }
 
-    // Entry point
+    private ProgramNode lastAst;
+    private ParseTreeNode lastParseTree;
+
     public void parseProgram() {
-        useList();
-        typeDeclList();
-        constDeclList();
-        globalVarDeclList();
-        funcDeclList();
-        mainFunction();
+        lastAst = null;
+        lastParseTree = null;
+        ParseTreeNode programNode = parseProgramParseTree();
         consume(TokenType.EOF, "Expected end of file.");
+        lastParseTree = programNode;
+        lastAst = ParseTreeToAst.convert(programNode);
+    }
+
+    /** Build parse tree for program, then convert to AST. */
+    public ProgramNode parseProgramToAst() {
+        ParseTreeNode programNode = parseProgramParseTree();
+        lastParseTree = programNode;
+        return ParseTreeToAst.convert(programNode);
+    }
+
+    private ParseTreeNode parseProgramParseTree() {
+        Token start = tokens.isEmpty() || isAtEnd() ? null : peek();
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(useList());
+        children.add(typeDeclList());
+        children.add(constDeclList());
+        children.add(globalVarDeclList());
+        children.add(funcDeclList());
+        children.add(mainFunction());
+        return ParseTreeNode.of(ParseTreeKind.PROGRAM, children, start);
+    }
+
+    public ProgramNode getProgramNode() {
+        return lastAst;
+    }
+
+    public ParseTreeNode getParseTreeRoot() {
+        return lastParseTree;
+    }
+
+    private static SourceSpan span(Token t) {
+        return t != null ? SourceSpan.of(t.line(), t.col()) : SourceSpan.of(1, 1);
+    }
+
+    private static ParseTreeNode terminal(Token t) {
+        return ParseTreeNode.terminal(t);
     }
 
     // -------------------------
@@ -155,199 +197,220 @@ public final class Parser {
     // -------------------------
     // Program Structure
     // -------------------------
-    private void useList() {
+    private ParseTreeNode useList() {
+        List<ParseTreeNode> list = new ArrayList<>();
+        Token at = null;
         while (match(TokenType.USE)) {
-            emit("USE statement", previous());
-            filename();
+            at = previous();
+            emit("USE statement", at);
+            ParseTreeNode filenameNode = filename();
+            list.add(ParseTreeNode.of(ParseTreeKind.USE_STMT, List.of(filenameNode), at));
             consume(TokenType.SEMI, "Expected ';' after use filename.");
         }
+        return ParseTreeNode.of(ParseTreeKind.USE_LIST, list, at);
     }
 
-    private void filename() {
-        consume(TokenType.IDENT, "Expected identifier in filename.");
+    private ParseTreeNode filename() {
+        List<ParseTreeNode> children = new ArrayList<>();
+        Token t = consume(TokenType.IDENT, "Expected identifier in filename.");
+        children.add(terminal(t));
         while (match(TokenType.DOT)) {
-            consume(TokenType.IDENT, "Expected identifier after '.' in filename.");
+            children.add(terminal(previous()));
+            Token t2 = consume(TokenType.IDENT, "Expected identifier after '.' in filename.");
+            children.add(terminal(t2));
         }
+        return ParseTreeNode.of(ParseTreeKind.FILENAME, children, null);
     }
 
     // -------------------------
     // Type Declarations
     // -------------------------
-    private void typeDeclList() {
+    private ParseTreeNode typeDeclList() {
+        List<ParseTreeNode> list = new ArrayList<>();
         while (check(TokenType.TYPE) || check(TokenType.AGENT) || check(TokenType.WORLD)) {
-            typeDecl();
+            list.add(typeDecl());
         }
+        return ParseTreeNode.of(ParseTreeKind.TYPE_DECL_LIST, list, null);
     }
 
-    private void typeDecl() {
+    private ParseTreeNode typeDecl() {
         if (match(TokenType.TYPE)) {
-            emit("Type alias declaration", previous());
-            consume(TokenType.IDENT, "Expected type name after 'type'.");
+            Token at = previous();
+            emit("Type alias declaration", at);
+            Token nameTok = consume(TokenType.IDENT, "Expected type name after 'type'.");
             consume(TokenType.ASSIGN, "Expected '=' after type name.");
-            recordType();
+            ParseTreeNode rt = recordType();
             consume(TokenType.SEMI, "Expected ';' after type alias.");
-            return;
+            return ParseTreeNode.of(ParseTreeKind.TYPE_ALIAS_DECL, List.of(terminal(nameTok), rt), at);
         }
-        if (check(TokenType.AGENT)) { agentDecl(); return; }
-        if (check(TokenType.WORLD)) { worldDecl(); return; }
-
+        if (check(TokenType.AGENT)) return agentDecl();
+        if (check(TokenType.WORLD)) return worldDecl();
         Token p = peek();
         throw new ParseException("Expected type declaration.", p.line(), p.col());
     }
 
-    private void recordType() {
-        consume(TokenType.RECORD, "Expected 'record'.");
+    private ParseTreeNode recordType() {
+        Token rec = consume(TokenType.RECORD, "Expected 'record'.");
         consume(TokenType.LBRACE, "Expected '{' after record.");
-        fieldDeclList();
+        ParseTreeNode fields = fieldDeclList();
         consume(TokenType.RBRACE, "Expected '}' after record fields.");
+        return ParseTreeNode.of(ParseTreeKind.RECORD_TYPE, List.of(fields), rec);
     }
 
-    private void agentDecl() {
+    private ParseTreeNode agentDecl() {
         Token t = consume(TokenType.AGENT, "Expected 'agent'.");
         emit("AGENT declaration", t);
-        consume(TokenType.IDENT, "Expected agent name.");
+        Token nameTok = consume(TokenType.IDENT, "Expected agent name.");
         consume(TokenType.LBRACE, "Expected '{' after agent name.");
-        agentBody();
+        ParseTreeNode fields = fieldDeclList();
+        ParseTreeNode zones = zoneDeclList();
+        ParseTreeNode updateBlock = updateBlock();
         consume(TokenType.RBRACE, "Expected '}' after agent body.");
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(terminal(nameTok));
+        children.add(fields);
+        children.add(zones);
+        children.add(updateBlock);
+        return ParseTreeNode.of(ParseTreeKind.AGENT_DECL, children, t);
     }
 
-    private void agentBody() {
-        fieldDeclList();
-        zoneDeclList();
-        updateBlock();
+    private ParseTreeNode zoneDeclList() {
+        List<ParseTreeNode> list = new ArrayList<>();
+        while (check(TokenType.ZONE)) list.add(zoneDecl());
+        return ParseTreeNode.of(ParseTreeKind.ZONE_DECL_LIST, list, null);
     }
 
-    private void worldDecl() {
-        Token t = consume(TokenType.WORLD, "Expected 'world'.");
-        emit("WORLD declaration", t);
-        consume(TokenType.IDENT, "Expected world name.");
-        consume(TokenType.LBRACE, "Expected '{' after world name.");
-        worldBody();
-        consume(TokenType.RBRACE, "Expected '}' after world body.");
-    }
-
-    private void worldBody() {
-        fieldDeclList();
-        if (match(TokenType.PRE)) {
-            emit("PRE block", previous());
-            block();
-        }
-
-        if (match(TokenType.POST)) {
-            emit("POST block", previous());
-            block();
-        }
-    }
-
-    private void updateBlock() {
-        Token t = consume(TokenType.UPDATE, "Expected 'update' block.");
-        emit("UPDATE block", t);
-        block();
-    }
-
-    private void zoneDeclList() {
-        while (check(TokenType.ZONE)) {
-            zoneDecl();
-        }
-    }
-
-    private void zoneDecl() {
+    private ParseTreeNode zoneDecl() {
         Token t = consume(TokenType.ZONE, "Expected 'zone'.");
         emit("ZONE declaration", t);
-
-        consume(TokenType.IDENT, "Expected zone name.");
+        Token nameTok = consume(TokenType.IDENT, "Expected zone name.");
         consume(TokenType.LPAREN, "Expected '(' after zone name.");
-        expr();
+        ParseTreeNode condition = expr();
         consume(TokenType.COMMA, "Expected ',' in zone parameters.");
-        consume(TokenType.IDENT, "Expected target type identifier in zone.");
+        Token targetTok = consume(TokenType.IDENT, "Expected target type identifier in zone.");
         consume(TokenType.RPAREN, "Expected ')' after zone parameters.");
-        block();
+        ParseTreeNode blk = block();
+        List<ParseTreeNode> children = List.of(terminal(nameTok), condition, terminal(targetTok), blk);
+        return ParseTreeNode.of(ParseTreeKind.ZONE_DECL, children, t);
+    }
+
+    private ParseTreeNode updateBlock() {
+        Token t = consume(TokenType.UPDATE, "Expected 'update' block.");
+        emit("UPDATE block", t);
+        return ParseTreeNode.of(ParseTreeKind.UPDATE_BLOCK, List.of(block()), t);
+    }
+
+    private ParseTreeNode worldDecl() {
+        Token t = consume(TokenType.WORLD, "Expected 'world'.");
+        emit("WORLD declaration", t);
+        Token nameTok = consume(TokenType.IDENT, "Expected world name.");
+        consume(TokenType.LBRACE, "Expected '{' after world name.");
+        ParseTreeNode fields = fieldDeclList();
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(terminal(nameTok));
+        children.add(fields);
+        if (match(TokenType.PRE)) {
+            emit("PRE block", previous());
+            children.add(block());
+        }
+        if (match(TokenType.POST)) {
+            emit("POST block", previous());
+            children.add(block());
+        }
+        consume(TokenType.RBRACE, "Expected '}' after world body.");
+        return ParseTreeNode.of(ParseTreeKind.WORLD_DECL, children, t);
     }
 
     // -------------------------
     // Fields / Vars / Consts
     // -------------------------
-    private void fieldDeclList() {
-        while (startsDataType()) {
-            // Heuristic: a field decl is type + declarator_list, followed by ';'
-            // but type could also be IDENT in statements; here we are inside record/agent/world bodies
-            // where fields are expected before blocks. This is fine.
-            fieldDecl();
+    private ParseTreeNode fieldDeclList() {
+        List<ParseTreeNode> list = new ArrayList<>();
+        // Use same heuristic as globalVarDeclList: only parse var decl when it looks like
+        // "type name" or "type * name" (not "ident =" which is an assignment).
+        while (looksLikeVarDeclStart()) {
+            list.add(varDecl());
             consume(TokenType.SEMI, "Expected ';' after field declaration.");
         }
+        return ParseTreeNode.of(ParseTreeKind.FIELD_DECL_LIST, list, null);
     }
 
-    private void fieldDecl() {
-        dataType();
-        declaratorList();
-    }
-
-    private void constDeclList() {
+    private ParseTreeNode constDeclList() {
+        List<ParseTreeNode> list = new ArrayList<>();
         while (match(TokenType.CONST)) {
-            consume(TokenType.IDENT, "Expected constant name.");
+            Token nameTok = consume(TokenType.IDENT, "Expected constant name.");
             consume(TokenType.ASSIGN, "Expected '=' in const declaration.");
-            constant();
+            ParseTreeNode value = constant();
             consume(TokenType.SEMI, "Expected ';' after const declaration.");
+            list.add(ParseTreeNode.of(ParseTreeKind.CONST_DECL, List.of(terminal(nameTok), value), nameTok));
         }
+        return ParseTreeNode.of(ParseTreeKind.CONST_DECL_LIST, list, null);
     }
 
-    private void constant() {
+    private ParseTreeNode constant() {
         if (match(TokenType.INT_LIT, TokenType.FLOAT_LIT, TokenType.CHAR_LIT, TokenType.STRING_LIT,
-                TokenType.TRUE, TokenType.FALSE)) return;
+                TokenType.TRUE, TokenType.FALSE)) {
+            return ParseTreeNode.of(ParseTreeKind.CONSTANT, List.of(terminal(previous())), previous());
+        }
         Token p = peek();
         throw new ParseException("Expected constant literal.", p.line(), p.col());
     }
 
-    private void globalVarDeclList() {
-        // Only parse global var declarations while it does NOT look like a function declaration.
+    private ParseTreeNode globalVarDeclList() {
+        List<ParseTreeNode> list = new ArrayList<>();
         while (looksLikeVarDeclStart() && !looksLikeFuncDeclStart()) {
-            varDecl();
+            list.add(varDecl());
+            consume(TokenType.SEMI, "Expected ';' after variable declaration.");
         }
+        return ParseTreeNode.of(ParseTreeKind.GLOBAL_VAR_DECL_LIST, list, null);
     }
 
-    private void varDecl() {
+    private ParseTreeNode varDecl() {
         Token start = peek();
-        dataType();
-        declaratorList();
-        consume(TokenType.SEMI, "Expected ';' after variable declaration.");
+        ParseTreeNode dt = dataType();
+        ParseTreeNode decls = declaratorList();
         emit("Variable declaration", start);
+        return ParseTreeNode.of(ParseTreeKind.VAR_DECL, List.of(dt, decls), start);
     }
 
-    private void declaratorList() {
-        declarator();
-        while (match(TokenType.COMMA)) {
-            declarator();
-        }
+    private ParseTreeNode declaratorList() {
+        List<ParseTreeNode> list = new ArrayList<>();
+        list.add(declarator());
+        while (match(TokenType.COMMA)) list.add(declarator());
+        return ParseTreeNode.of(ParseTreeKind.DECLARATOR_LIST, list, null);
     }
 
-    private void declarator() {
-        consume(TokenType.IDENT, "Expected variable/field name.");
-        // array dims
+    private ParseTreeNode declarator() {
+        Token nameTok = consume(TokenType.IDENT, "Expected variable/field name.");
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(terminal(nameTok));
         while (match(TokenType.LBRACKET)) {
-            consume(TokenType.INT_LIT, "Expected integer size in array dimension.");
+            Token lit = consume(TokenType.INT_LIT, "Expected integer size in array dimension.");
+            children.add(terminal(lit));
             consume(TokenType.RBRACKET, "Expected ']' after array dimension.");
         }
-        // init opt
         if (match(TokenType.ASSIGN)) {
-            expr();
+            children.add(terminal(previous()));
+            children.add(expr());
         }
+        return ParseTreeNode.of(ParseTreeKind.DECLARATOR, children, nameTok);
     }
 
-    // -------------------------
-    // Data Types with pointers
-    // <data_type> -> <base_type> <pointer_suffix>
-    // <pointer_suffix> -> * <pointer_suffix> | ε
-    // -------------------------
-    private void dataType() {
-        baseType();
-        while (match(TokenType.STAR)) {
-            // pointer suffix
-        }
+    private ParseTreeNode dataType() {
+        Token start = peek();
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(baseTypeNode());
+        while (match(TokenType.STAR)) children.add(terminal(previous()));
+        return ParseTreeNode.of(ParseTreeKind.DATA_TYPE, children, start);
     }
 
-    private void baseType() {
-        if (match(TokenType.INT, TokenType.FLOAT, TokenType.CHAR, TokenType.STRING, TokenType.BOOL)) return;
-        if (match(TokenType.IDENT)) return; // user-defined types
+    private ParseTreeNode baseTypeNode() {
+        if (match(TokenType.INT)) return terminal(previous());
+        if (match(TokenType.FLOAT)) return terminal(previous());
+        if (match(TokenType.CHAR)) return terminal(previous());
+        if (match(TokenType.STRING)) return terminal(previous());
+        if (match(TokenType.BOOL)) return terminal(previous());
+        if (check(TokenType.IDENT)) return terminal(advance());
         Token p = peek();
         throw new ParseException("Expected base type.", p.line(), p.col());
     }
@@ -355,12 +418,13 @@ public final class Parser {
     // -------------------------
     // Functions + Main
     // -------------------------
-    private void funcDeclList() {
+    private ParseTreeNode funcDeclList() {
+        List<ParseTreeNode> list = new ArrayList<>();
         while (check(TokenType.VOID) || startsDataType()) {
-            // main is separate, so avoid consuming "void main"
             if (check(TokenType.VOID) && lookaheadIsMainFunction()) break;
-            funcDecl();
+            list.add(funcDecl());
         }
+        return ParseTreeNode.of(ParseTreeKind.FUNC_DECL_LIST, list, null);
     }
 
     private boolean lookaheadIsMainFunction() {
@@ -369,252 +433,229 @@ public final class Parser {
         return t1 == TokenType.MAIN;
     }
 
-    private void funcDecl() {
-        returnType();
-
-        Token name = consume(TokenType.IDENT, "Expected function name.");
-        emit("FUNCTION declaration", name);
-
+    private ParseTreeNode funcDecl() {
+        ParseTreeNode returnType = returnType();
+        Token nameTok = consume(TokenType.IDENT, "Expected function name.");
+        emit("FUNCTION declaration", nameTok);
         consume(TokenType.LPAREN, "Expected '(' after function name.");
-        if (!check(TokenType.RPAREN)) paramList();
+        ParseTreeNode params = check(TokenType.RPAREN) ? ParseTreeNode.of(ParseTreeKind.PARAM_LIST, List.of(), null) : paramList();
         consume(TokenType.RPAREN, "Expected ')' after parameters.");
-        block();
+        ParseTreeNode body = block();
+        return ParseTreeNode.of(ParseTreeKind.FUNC_DECL, List.of(returnType, terminal(nameTok), params, body), nameTok);
     }
 
-    private void returnType() {
-        if (match(TokenType.VOID)) return;
-        dataType();
+    private ParseTreeNode returnType() {
+        if (match(TokenType.VOID)) return ParseTreeNode.of(ParseTreeKind.RETURN_TYPE, List.of(terminal(previous())), previous());
+        return ParseTreeNode.of(ParseTreeKind.RETURN_TYPE, List.of(dataType()), null);
     }
 
-    private void paramList() {
-        param();
-        while (match(TokenType.COMMA)) {
-            param();
-        }
+    private ParseTreeNode paramList() {
+        List<ParseTreeNode> list = new ArrayList<>();
+        list.add(param());
+        while (match(TokenType.COMMA)) list.add(param());
+        return ParseTreeNode.of(ParseTreeKind.PARAM_LIST, list, null);
     }
 
-    private void param() {
-        dataType();
-        consume(TokenType.IDENT, "Expected parameter name.");
-        // optional array dims
+    private ParseTreeNode param() {
+        Token start = peek();
+        ParseTreeNode dt = dataType();
+        Token nameTok = consume(TokenType.IDENT, "Expected parameter name.");
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(dt);
+        children.add(terminal(nameTok));
         while (match(TokenType.LBRACKET)) {
-            consume(TokenType.INT_LIT, "Expected integer size in array dimension.");
+            Token lit = consume(TokenType.INT_LIT, "Expected integer size in array dimension.");
+            children.add(terminal(lit));
             consume(TokenType.RBRACKET, "Expected ']' after array dimension.");
         }
+        return ParseTreeNode.of(ParseTreeKind.PARAM, children, start);
     }
 
-    private void mainFunction() {
+    private ParseTreeNode mainFunction() {
         consume(TokenType.VOID, "Expected 'void' for main.");
         Token mainTok = consume(TokenType.MAIN, "Expected 'main'.");
         emit("MAIN function", mainTok);
         consume(TokenType.LPAREN, "Expected '(' after main.");
         consume(TokenType.RPAREN, "Expected ')' after main.");
-        block();
+        return ParseTreeNode.of(ParseTreeKind.MAIN_FUNCTION, List.of(block()), mainTok);
     }
 
     // -------------------------
     // Blocks / Statements
     // -------------------------
-    private void block() {
-        consume(TokenType.LBRACE, "Expected '{'.");
-        while (looksLikeVarDeclStart()) {
-            varDecl();
-        }
+    private ParseTreeNode block() {
+        Token lbrace = consume(TokenType.LBRACE, "Expected '{'.");
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(fieldDeclList());
         while (!check(TokenType.RBRACE) && !isAtEnd()) {
-            statement();
+            children.add(statement());
         }
         consume(TokenType.RBRACE, "Expected '}' to close block.");
+        return ParseTreeNode.of(ParseTreeKind.BLOCK, children, lbrace);
     }
 
-    private void statement() {
-        // Assignment starting with 'self.' (lvalue: self . IDENT lvalue_tail)
+    private ParseTreeNode statement() {
+        ParseTreeNode inner;
         if (check(TokenType.SELF)) {
-            assignStmt();
+            inner = assignStmt();
             consume(TokenType.SEMI, "Expected ';' after assignment.");
-            return;
-        }
-        // Assignment starting with '*' or IDENT (lvalue)
-        if (check(TokenType.STAR) || check(TokenType.IDENT)) {
-            // Decide assignment vs call_stmt:
-            // If it looks like a call: IDENT '('
+        } else if (check(TokenType.STAR) || check(TokenType.IDENT)) {
             if (check(TokenType.IDENT) && tokens.get(Math.min(current + 1, tokens.size() - 1)).type() == TokenType.LPAREN) {
-                callStmt();
+                inner = callStmt();
                 consume(TokenType.SEMI, "Expected ';' after call.");
-                return;
-            }
-            // Otherwise attempt assignment
-            assignStmt();
-            consume(TokenType.SEMI, "Expected ';' after assignment.");
-            return;
-        }
-
-        // ABM call statements (neighbors(...); rand(...);)
-        if (check(TokenType.NEIGHBORS) || check(TokenType.RAND)) {
-            abmCall();
-            consume(TokenType.SEMI, "Expected ';' after ABM call.");
-            return;
-        }
-
-        if (match(TokenType.READ, TokenType.PRINT)) {
-            // we consumed keyword already, but grammar expects io_stmt; easiest: rewind not worth it.
-            // We'll parse based on which we matched:
-            Token kw = previous();
-            if (kw.type() == TokenType.READ) {
-                consume(TokenType.LPAREN, "Expected '(' after read.");
-                lvalue();
-                consume(TokenType.RPAREN, "Expected ')' after read(...).");
             } else {
-                consume(TokenType.LPAREN, "Expected '(' after print.");
-                if (!check(TokenType.RPAREN)) {
-                    expr();
-                    while (match(TokenType.COMMA)) expr();
-                }
-                consume(TokenType.RPAREN, "Expected ')' after print(...).");
+                inner = assignStmt();
+                consume(TokenType.SEMI, "Expected ';' after assignment.");
             }
+        } else if (check(TokenType.NEIGHBORS) || check(TokenType.RAND)) {
+            inner = abmCallStmtNode();
+            consume(TokenType.SEMI, "Expected ';' after ABM call.");
+        } else if (match(TokenType.READ)) {
+            Token kw = previous();
+            consume(TokenType.LPAREN, "Expected '(' after read.");
+            Token start = peek();
+            lvalue();
+            consume(TokenType.RPAREN, "Expected ')' after read(...).");
             consume(TokenType.SEMI, "Expected ';' after I/O statement.");
-            return;
-        }
-
-        if (check(TokenType.IF)) { ifStmt(); return; }
-        if (check(TokenType.WHILE)) { whileStmt(); return; }
-        if (check(TokenType.FOR)) { forStmt(); return; }
-        if (check(TokenType.REPEAT)) { repeatUntilStmt(); return; }
-
-        if (match(TokenType.RETURN)) {
+            emit("I/O statement (read)", kw);
+            inner = ParseTreeNode.of(ParseTreeKind.READ_STMT, List.of(terminal(start)), kw);
+        } else if (match(TokenType.PRINT)) {
+            Token kw = previous();
+            consume(TokenType.LPAREN, "Expected '(' after print.");
+            List<ParseTreeNode> args = new ArrayList<>();
+            if (!check(TokenType.RPAREN)) { args.add(expr()); while (match(TokenType.COMMA)) args.add(expr()); }
+            consume(TokenType.RPAREN, "Expected ')' after print(...).");
+            consume(TokenType.SEMI, "Expected ';' after I/O statement.");
+            emit("I/O statement (print)", kw);
+            inner = ParseTreeNode.of(ParseTreeKind.PRINT_STMT, List.of(ParseTreeNode.of(ParseTreeKind.EXPR_LIST, args, null)), kw);
+        } else if (check(TokenType.IF)) { inner = ifStmt(); }
+        else if (check(TokenType.WHILE)) { inner = whileStmt(); }
+        else if (check(TokenType.FOR)) { inner = forStmt(); }
+        else if (check(TokenType.REPEAT)) { inner = repeatUntilStmt(); }
+        else if (match(TokenType.RETURN)) {
             Token t = previous();
-            if (!check(TokenType.SEMI)) expr();
+            ParseTreeNode val = check(TokenType.SEMI) ? null : expr();
             consume(TokenType.SEMI, "Expected ';' after return.");
             emit("RETURN statement", t);
-            return;
-        }
-
-        if (match(TokenType.BREAK)) {
-            Token t = previous(); 
-            consume(TokenType.SEMI, "Expected ';' after break."); 
-            emit("BREAK statement", t);
-            return; 
-        }
-
-        if (match(TokenType.CONTINUE)) { 
+            inner = ParseTreeNode.of(ParseTreeKind.RETURN_STMT, val != null ? List.of(val) : List.of(), t);
+        } else if (match(TokenType.BREAK)) {
             Token t = previous();
-            consume(TokenType.SEMI, "Expected ';' after continue."); 
+            consume(TokenType.SEMI, "Expected ';' after break.");
+            emit("BREAK statement", t);
+            inner = ParseTreeNode.of(ParseTreeKind.BREAK_STMT, List.of(), t);
+        } else if (match(TokenType.CONTINUE)) {
+            Token t = previous();
+            consume(TokenType.SEMI, "Expected ';' after continue.");
             emit("CONTINUE statement", t);
-            return; 
-        }
-
-        if (match(TokenType.ASSERT)) {
+            inner = ParseTreeNode.of(ParseTreeKind.CONTINUE_STMT, List.of(), t);
+        } else if (match(TokenType.ASSERT)) {
             Token t = previous();
             consume(TokenType.LPAREN, "Expected '(' after assert.");
-            expr();
+            ParseTreeNode cond = expr();
             consume(TokenType.RPAREN, "Expected ')' after assert condition.");
             consume(TokenType.SEMI, "Expected ';' after assert.");
             emit("ASSERT statement", t);
-            return;
-        }
-
-        if (check(TokenType.LBRACE)) { block(); return; }
-
-        // ABM statements: spawn/move/step/destroy
-        if (check(TokenType.SPAWN) || check(TokenType.MOVE) || check(TokenType.STEP) || check(TokenType.DESTROY)) {
-            abmStmt();
+            inner = ParseTreeNode.of(ParseTreeKind.ASSERT_STMT, List.of(cond), t);
+        } else if (check(TokenType.LBRACE)) {
+            inner = ParseTreeNode.of(ParseTreeKind.BLOCK_STMT, List.of(block()), peek());
+        } else if (check(TokenType.SPAWN) || check(TokenType.MOVE) || check(TokenType.STEP) || check(TokenType.DESTROY)) {
+            inner = abmStmt();
             consume(TokenType.SEMI, "Expected ';' after ABM statement.");
-            return;
+        } else {
+            Token p = peek();
+            throw new ParseException("Unexpected statement start: " + p.type(), p.line(), p.col());
         }
-
-        Token p = peek();
-        throw new ParseException("Unexpected statement start: " + p.type(), p.line(), p.col());
+        return ParseTreeNode.of(ParseTreeKind.STATEMENT, List.of(inner), inner.token());
     }
 
-    private void assignStmt() {
-        Token start = peek();     // assignment begins at first token of lvalue
+    private ParseTreeNode assignStmt() {
+        Token start = peek();
         lvalue();
         consume(TokenType.ASSIGN, "Expected '=' in assignment.");
-        expr();
+        ParseTreeNode value = expr();
         emit("Assignment statement", start);
+        return ParseTreeNode.of(ParseTreeKind.ASSIGN_STMT, List.of(terminal(start), value), start);
     }
 
-    private void callStmt() {
-        // IDENT '(' arg_list_opt ')'
+    private ParseTreeNode callStmt() {
         Token fn = consume(TokenType.IDENT, "Expected function name.");
         consume(TokenType.LPAREN, "Expected '(' after function name.");
-        if (!check(TokenType.RPAREN)) {
-            expr();
-            while (match(TokenType.COMMA)) expr();
-        }
+        List<ParseTreeNode> args = new ArrayList<>();
+        if (!check(TokenType.RPAREN)) { args.add(expr()); while (match(TokenType.COMMA)) args.add(expr()); }
         consume(TokenType.RPAREN, "Expected ')' after arguments.");
         emit("Call statement", fn);
+        return ParseTreeNode.of(ParseTreeKind.CALL_STMT, List.of(terminal(fn), ParseTreeNode.of(ParseTreeKind.EXPR_LIST, args, null)), fn);
     }
 
-    private void ifStmt() {
+    private ParseTreeNode ifStmt() {
         Token ifTok = consume(TokenType.IF, "Expected 'if'.");
         emit("IF statement", ifTok);
-
         consume(TokenType.LPAREN, "Expected '(' after if.");
-        expr();
+        ParseTreeNode condition = expr();
         consume(TokenType.RPAREN, "Expected ')' after if condition.");
-        statement();
-        if (match(TokenType.ELSE)) {
-            emit("ELSE clause", previous());
-            statement();
-        }
+        ParseTreeNode thenBranch = statement();
+        ParseTreeNode elseBranch = null;
+        if (match(TokenType.ELSE)) { emit("ELSE clause", previous()); elseBranch = statement(); }
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(condition); children.add(thenBranch);
+        if (elseBranch != null) children.add(elseBranch);
+        return ParseTreeNode.of(ParseTreeKind.IF_STMT, children, ifTok);
     }
 
-    private void whileStmt() {
+    private ParseTreeNode whileStmt() {
         Token w = consume(TokenType.WHILE, "Expected 'while'.");
         emit("WHILE loop", w);
-
         consume(TokenType.LPAREN, "Expected '(' after while.");
-        expr();
+        ParseTreeNode condition = expr();
         consume(TokenType.RPAREN, "Expected ')' after while condition.");
-        statement();
+        return ParseTreeNode.of(ParseTreeKind.WHILE_STMT, List.of(condition, statement()), w);
     }
 
-    private void forStmt() {
+    private ParseTreeNode forStmt() {
         Token f = consume(TokenType.FOR, "Expected 'for'.");
         emit("FOR loop", f);
-
         consume(TokenType.LPAREN, "Expected '(' after for.");
-
-        // init
+        ParseTreeNode init = null;
         if (!check(TokenType.SEMI)) {
-            if (looksLikeVarDeclNoSemi()) {
-                dataType();
-                declaratorList();
-            } else {
-                assignStmtList();
-            }
+            init = looksLikeVarDeclNoSemi() ? forInitVarDecl() : ParseTreeNode.of(ParseTreeKind.FOR_INIT_ASSIGN_LIST, List.of(assignStmtList()), null);
         }
         consume(TokenType.SEMI, "Expected ';' after for-init.");
-
-        // condition
-        if (!check(TokenType.SEMI)) expr();
+        ParseTreeNode condition = check(TokenType.SEMI) ? null : expr();
         consume(TokenType.SEMI, "Expected ';' after for-condition.");
-
-        // update
-        if (!check(TokenType.RPAREN)) {
-            assignStmtList();
-        }
+        ParseTreeNode update = check(TokenType.RPAREN) ? ParseTreeNode.of(ParseTreeKind.ASSIGN_STMT_LIST, List.of(), null) : assignStmtList();
         consume(TokenType.RPAREN, "Expected ')' after for-update.");
-        statement();
+        ParseTreeNode body = statement();
+        List<ParseTreeNode> children = new ArrayList<>();
+        if (init != null) children.add(init);
+        children.add(condition != null ? condition : ParseTreeNode.of(ParseTreeKind.EXPR, List.of(), null));
+        children.add(update);
+        children.add(body);
+        return ParseTreeNode.of(ParseTreeKind.FOR_STMT, children, f);
     }
 
-    private void assignStmtList() {
-        assignStmt();
-        while (match(TokenType.COMMA)) {
-            assignStmt();
-        }
+    private ParseTreeNode forInitVarDecl() {
+        ParseTreeNode dt = dataType();
+        ParseTreeNode decls = declaratorList();
+        return ParseTreeNode.of(ParseTreeKind.FOR_INIT_VAR_DECL, List.of(dt, decls), null);
     }
 
-    private void repeatUntilStmt() {
+    private ParseTreeNode assignStmtList() {
+        List<ParseTreeNode> list = new ArrayList<>();
+        list.add(assignStmt());
+        while (match(TokenType.COMMA)) list.add(assignStmt());
+        return ParseTreeNode.of(ParseTreeKind.ASSIGN_STMT_LIST, list, null);
+    }
+
+    private ParseTreeNode repeatUntilStmt() {
         Token r = consume(TokenType.REPEAT, "Expected 'repeat'.");
         emit("REPEAT loop", r);
-
-        block();
+        ParseTreeNode blk = block();
         consume(TokenType.UNTIL, "Expected 'until' after repeat block.");
         consume(TokenType.LPAREN, "Expected '(' after until.");
-        expr();
+        ParseTreeNode condition = expr();
         consume(TokenType.RPAREN, "Expected ')' after until condition.");
         consume(TokenType.SEMI, "Expected ';' after repeat-until.");
+        return ParseTreeNode.of(ParseTreeKind.REPEAT_UNTIL_STMT, List.of(blk, condition), r);
     }
 
     // -------------------------
@@ -653,176 +694,204 @@ public final class Parser {
     // -------------------------
     // ABM statements/calls
     // -------------------------
-    private void abmStmt() {
+    private ParseTreeNode abmCallStmtNode() {
+        Token nameTok = match(TokenType.NEIGHBORS) ? previous() : (match(TokenType.RAND) ? previous() : null);
+        if (nameTok == null) throw new ParseException("Expected ABM call", peek().line(), peek().col());
+        consume(TokenType.LPAREN, "Expected '(' after ABM call.");
+        List<ParseTreeNode> args = new ArrayList<>();
+        if (!check(TokenType.RPAREN)) { args.add(expr()); while (match(TokenType.COMMA)) args.add(expr()); }
+        consume(TokenType.RPAREN, "Expected ')' after ABM call args.");
+        return ParseTreeNode.of(ParseTreeKind.ABM_CALL_STMT, List.of(terminal(nameTok), ParseTreeNode.of(ParseTreeKind.EXPR_LIST, args, null)), nameTok);
+    }
+
+    private ParseTreeNode abmStmt() {
         if (match(TokenType.SPAWN)) {
             Token t = previous();
-            consume(TokenType.IDENT, "Expected agent type after spawn.");
+            Token typeTok = consume(TokenType.IDENT, "Expected agent type after spawn.");
             consume(TokenType.LPAREN, "Expected '(' after spawn type.");
-            if (!check(TokenType.RPAREN)) {
-                expr();
-                while (match(TokenType.COMMA)) expr();
-            }
+            List<ParseTreeNode> args = new ArrayList<>();
+            if (!check(TokenType.RPAREN)) { args.add(expr()); while (match(TokenType.COMMA)) args.add(expr()); }
             consume(TokenType.RPAREN, "Expected ')' after spawn args.");
             emit("ABM SPAWN statement", t);
-            return;
+            return ParseTreeNode.of(ParseTreeKind.SPAWN_STMT, List.of(terminal(typeTok), ParseTreeNode.of(ParseTreeKind.EXPR_LIST, args, null)), t);
         }
-
         if (match(TokenType.MOVE)) {
             Token t = previous();
             consume(TokenType.LPAREN, "Expected '(' after move.");
-            expr();
+            ParseTreeNode x = expr();
             consume(TokenType.COMMA, "Expected ',' in move.");
-            expr();
-            if (match(TokenType.COMMA)) {
-                expr();
-            }
+            ParseTreeNode y = expr();
+            ParseTreeNode z = match(TokenType.COMMA) ? expr() : null;
             consume(TokenType.RPAREN, "Expected ')' after move args.");
             emit("ABM MOVE statement", t);
-            return;
+            List<ParseTreeNode> children = new ArrayList<>();
+            children.add(x); children.add(y); if (z != null) children.add(z);
+            return ParseTreeNode.of(ParseTreeKind.MOVE_STMT, children, t);
         }
-
         if (match(TokenType.STEP)) {
             Token t = previous();
             consume(TokenType.LPAREN, "Expected '(' after step.");
-            if (!check(TokenType.RPAREN)) expr();
+            ParseTreeNode arg = check(TokenType.RPAREN) ? null : expr();
             consume(TokenType.RPAREN, "Expected ')' after step args.");
             emit("ABM STEP statement", t);
-            return;
+            return ParseTreeNode.of(ParseTreeKind.STEP_STMT, arg != null ? List.of(arg) : List.of(), t);
         }
-
         if (match(TokenType.DESTROY)) {
             Token t = previous();
             consume(TokenType.LPAREN, "Expected '(' after destroy.");
-            expr();
+            ParseTreeNode target = expr();
             consume(TokenType.RPAREN, "Expected ')' after destroy arg.");
             emit("ABM DESTROY statement", t);
-            return;
+            return ParseTreeNode.of(ParseTreeKind.DESTROY_STMT, List.of(target), t);
         }
-
         Token p = peek();
         throw new ParseException("Expected ABM statement.", p.line(), p.col());
-    }
-
-    private void abmCall() {
-        if (match(TokenType.NEIGHBORS) || match(TokenType.RAND)) {
-            // If we matched one, it is previous()
-            consume(TokenType.LPAREN, "Expected '(' after ABM call.");
-            if (!check(TokenType.RPAREN)) {
-                expr();
-                while (match(TokenType.COMMA)) expr();
-            }
-            consume(TokenType.RPAREN, "Expected ')' after ABM call args.");
-            return;
-        }
-        Token p = peek();
-        throw new ParseException("Expected ABM call.", p.line(), p.col());
     }
 
     // -------------------------
     // Expressions
     // -------------------------
-    private void expr() { condExpr(); }
+    private ParseTreeNode expr() {
+        return ParseTreeNode.of(ParseTreeKind.EXPR, List.of(condExpr()), null);
+    }
 
-    private void condExpr() {
-        orExpr();
+    private ParseTreeNode condExpr() {
+        ParseTreeNode condition = orExpr();
         if (match(TokenType.QMARK)) {
-            expr();
+            Token at = previous();
+            ParseTreeNode thenExpr = expr();
             consume(TokenType.COLON, "Expected ':' in conditional expression.");
-            condExpr();
+            ParseTreeNode elseExpr = condExpr();
+            return ParseTreeNode.of(ParseTreeKind.COND_EXPR, List.of(condition, thenExpr, elseExpr), at);
         }
+        return condition;
     }
 
-    private void orExpr() {
-        andExpr();
-        while (match(TokenType.OROR)) andExpr();
+    private ParseTreeNode orExpr() {
+        ParseTreeNode left = andExpr();
+        while (match(TokenType.OROR)) {
+            ParseTreeNode right = andExpr();
+            left = ParseTreeNode.of(ParseTreeKind.OR_EXPR, List.of(left, terminal(previous()), right), previous());
+        }
+        return left;
     }
 
-    private void andExpr() {
-        eqExpr();
-        while (match(TokenType.ANDAND)) eqExpr();
+    private ParseTreeNode andExpr() {
+        ParseTreeNode left = eqExpr();
+        while (match(TokenType.ANDAND)) {
+            ParseTreeNode right = eqExpr();
+            left = ParseTreeNode.of(ParseTreeKind.AND_EXPR, List.of(left, terminal(previous()), right), previous());
+        }
+        return left;
     }
 
-    private void eqExpr() {
-        relExpr();
-        while (match(TokenType.EQEQ, TokenType.NEQ)) relExpr();
+    private ParseTreeNode eqExpr() {
+        ParseTreeNode left = relExpr();
+        while (match(TokenType.EQEQ, TokenType.NEQ)) {
+            ParseTreeNode right = relExpr();
+            left = ParseTreeNode.of(ParseTreeKind.EQ_EXPR, List.of(left, terminal(previous()), right), previous());
+        }
+        return left;
     }
 
-    private void relExpr() {
-        addExpr();
-        while (match(TokenType.LT, TokenType.LTE, TokenType.GT, TokenType.GTE)) addExpr();
+    private ParseTreeNode relExpr() {
+        ParseTreeNode left = addExpr();
+        while (match(TokenType.LT, TokenType.LTE, TokenType.GT, TokenType.GTE)) {
+            ParseTreeNode right = addExpr();
+            left = ParseTreeNode.of(ParseTreeKind.REL_EXPR, List.of(left, terminal(previous()), right), previous());
+        }
+        return left;
     }
 
-    private void addExpr() {
-        mulExpr();
-        while (match(TokenType.PLUS, TokenType.MINUS)) mulExpr();
+    private ParseTreeNode addExpr() {
+        ParseTreeNode left = mulExpr();
+        while (match(TokenType.PLUS, TokenType.MINUS)) {
+            ParseTreeNode right = mulExpr();
+            left = ParseTreeNode.of(ParseTreeKind.ADD_EXPR, List.of(left, terminal(previous()), right), previous());
+        }
+        return left;
     }
 
-    private void mulExpr() {
-        unaryExpr();
-        while (match(TokenType.STAR, TokenType.SLASH, TokenType.MOD)) unaryExpr();
+    private ParseTreeNode mulExpr() {
+        ParseTreeNode left = unaryExpr();
+        while (match(TokenType.STAR, TokenType.SLASH, TokenType.MOD)) {
+            ParseTreeNode right = unaryExpr();
+            left = ParseTreeNode.of(ParseTreeKind.MUL_EXPR, List.of(left, terminal(previous()), right), previous());
+        }
+        return left;
     }
 
-    private void unaryExpr() {
+    private ParseTreeNode unaryExpr() {
         if (match(TokenType.NOT, TokenType.MINUS, TokenType.PLUS, TokenType.AMP, TokenType.STAR)) {
-            unaryExpr();
-            return;
+            Token opTok = previous();
+            ParseTreeNode operand = unaryExpr();
+            return ParseTreeNode.of(ParseTreeKind.UNARY_EXPR, List.of(terminal(opTok), operand), opTok);
         }
-        primary();
+        return primary();
     }
 
-    private void primary() {
-        atom();
-        // <postfix chain>
+    private ParseTreeNode primary() {
+        List<ParseTreeNode> children = new ArrayList<>();
+        children.add(atom());
         while (true) {
             if (match(TokenType.LPAREN)) {
-                // <arg_list_opt>
-                if (!check(TokenType.RPAREN)) {
-                    expr();
-                    while (match(TokenType.COMMA)) expr();
-                }
-                
+                children.add(terminal(previous()));
+                List<ParseTreeNode> args = new ArrayList<>();
+                if (!check(TokenType.RPAREN)) { args.add(expr()); while (match(TokenType.COMMA)) args.add(expr()); }
+                children.add(ParseTreeNode.of(ParseTreeKind.EXPR_LIST, args, null));
                 consume(TokenType.RPAREN, "Expected ')' after call.");
-                continue;
-            }
-            if (match(TokenType.LBRACKET)) {
-                expr();
+            } else if (match(TokenType.LBRACKET)) {
+                children.add(terminal(previous()));
+                children.add(expr());
                 consume(TokenType.RBRACKET, "Expected ']' after index.");
-                continue;
-            }
-            if (match(TokenType.DOT)) {
-                consume(TokenType.IDENT, "Expected field name after '.'.");
-                continue;
-            }
-            break;
+            } else if (match(TokenType.DOT)) {
+                children.add(terminal(previous()));
+                children.add(terminal(consume(TokenType.IDENT, "Expected field name after '.'.")));
+            } else break;
         }
+        return ParseTreeNode.of(ParseTreeKind.PRIMARY, children, null);
     }
 
-    private void atom() {
+    private ParseTreeNode atom() {
         if (match(TokenType.LPAREN)) {
-            expr();
+            Token lparen = previous();
+            ParseTreeNode inner = expr();
             consume(TokenType.RPAREN, "Expected ')' after expression.");
-            return;
+            return ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(lparen), inner), lparen);
         }
-
-        // <literal>
         if (match(TokenType.INT_LIT, TokenType.FLOAT_LIT, TokenType.CHAR_LIT, TokenType.STRING_LIT,
-                TokenType.TRUE, TokenType.FALSE, TokenType.NULL)) {
-            return;
+                TokenType.TRUE, TokenType.FALSE)) {
+            Token t = previous();
+            return ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(t)), t);
         }
-
+        if (match(TokenType.NULL)) {
+            return ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(previous())), previous());
+        }
         if (match(TokenType.IDENT)) {
-            return;
+            return ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(previous())), previous());
         }
-
-        // <abm_call>
         if (check(TokenType.NEIGHBORS) || check(TokenType.RAND)) {
-            abmCall();
-            return;
+            return abmCallExprParseTree();
         }
-
-        if (match(TokenType.SELF)) return;
-
+        if (match(TokenType.SELF)) {
+            Token t = previous();
+            if (match(TokenType.DOT)) {
+                Token field = consume(TokenType.IDENT, "Expected field name after '.'.");
+                return ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(t), terminal(previous()), terminal(field)), t);
+            }
+            return ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(t)), t);
+        }
         Token p = peek();
         throw new ParseException("Expected expression atom.", p.line(), p.col());
+    }
+
+    private ParseTreeNode abmCallExprParseTree() {
+        Token nameTok = match(TokenType.NEIGHBORS) ? previous() : (match(TokenType.RAND) ? previous() : null);
+        if (nameTok == null) throw new ParseException("Expected ABM call", peek().line(), peek().col());
+        consume(TokenType.LPAREN, "Expected '(' after ABM call.");
+        List<ParseTreeNode> args = new ArrayList<>();
+        if (!check(TokenType.RPAREN)) { args.add(expr()); while (match(TokenType.COMMA)) args.add(expr()); }
+        consume(TokenType.RPAREN, "Expected ')' after ABM call args.");
+        return ParseTreeNode.of(ParseTreeKind.ABM_CALL_EXPR, List.of(terminal(nameTok), ParseTreeNode.of(ParseTreeKind.EXPR_LIST, args, null)), nameTok);
     }
 }
