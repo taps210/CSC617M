@@ -130,6 +130,14 @@ public class SemanticAnalyzer {
         if (s instanceof AssignStmtNode n) {
             visitExpr(n.lvalue());
             visitExpr(n.value());
+            DataTypeNode valueType = typeOfExpr(n.value());
+            DataTypeNode lvalueType = typeOfLvalue(n.lvalue());
+            if (lvalueType != null && "agent_list".equals(valueType.baseTypeName())) {
+                String base = lvalueType.baseTypeName();
+                if ("int".equals(base) || "float".equals(base) || "char".equals(base) || "string".equals(base) || "bool".equals(base) || "void".equals(base)) {
+                    error(n.location(), "neighbors() returns a list of agents; declare the variable as an agent array (e.g. Drop[] drops;), not " + base);
+                }
+            }
             return;
         }
         if (s instanceof CallStmtNode n) {
@@ -230,7 +238,11 @@ public class SemanticAnalyzer {
             else if (!n.isSelfField() && table.resolve(n.baseName()) == null) error(n.location(), "Undefined identifier: " + n.baseName());
             return;
         }
-        if (e instanceof BinaryExprNode n) { visitExpr(n.left()); visitExpr(n.right()); return; }
+        if (e instanceof BinaryExprNode n) {
+            visitExpr(n.left());
+            if (!".".equals(n.op())) visitExpr(n.right());
+            return;
+        }
         if (e instanceof UnaryExprNode n) { visitExpr(n.operand()); return; }
         if (e instanceof TernaryExprNode n) { visitExpr(n.condition()); visitExpr(n.thenExpr()); visitExpr(n.elseExpr()); return; }
         if (e instanceof ParenExprNode n) { visitExpr(n.inner()); return; }
@@ -262,7 +274,27 @@ public class SemanticAnalyzer {
         if (e instanceof UnaryExprNode un) return typeOfExpr(un.operand());
         if (e instanceof ParenExprNode p) return typeOfExpr(p.inner());
         if (e instanceof TernaryExprNode t) return typeOfExpr(t.thenExpr());
+        if (e instanceof AbmCallExprNode n) {
+            if ("neighbors".equals(n.name())) return new DataTypeNode(n.location(), "agent_list", 0);
+            if ("rand".equals(n.name())) return new DataTypeNode(n.location(), "int", 0);
+        }
         return new DataTypeNode(e.location(), "int", 0);
+    }
+
+    /** Type of the variable or storage denoted by an lvalue; null if not a simple name. */
+    private DataTypeNode typeOfLvalue(ExprNode e) {
+        if (e instanceof IdentExprNode n) {
+            SymbolTable.Symbol s = table.resolve(n.name());
+            return s != null ? s.type : null;
+        }
+        if (e instanceof LvalueExprNode n) {
+            SymbolTable.Symbol s = table.resolve(n.baseName());
+            return s != null ? s.type : null;
+        }
+        if (e instanceof SelfFieldExprNode n) {
+            return new DataTypeNode(n.location(), "int", 0);
+        }
+        return null;
     }
 
     private void error(SourceSpan loc, String message) {

@@ -191,6 +191,9 @@ public final class ParseTreeToAst {
                 Object lit = c.get(i).token().literal();
                 dims.add(lit != null ? ((Number) lit).intValue() : 0);
                 i++;
+            } else if (c.get(i).isTerminal() && (c.get(i).token().type() == TokenType.RBRACKET || c.get(i).token().type() == TokenType.LBRACKET)) {
+                dims.add(0);
+                i++;
             } else if (c.get(i).isTerminal() && c.get(i).token().type() == TokenType.ASSIGN) {
                 i++;
                 ExprNode init = toExpr(child(c, i)); i++;
@@ -248,7 +251,9 @@ public final class ParseTreeToAst {
     }
 
     private static BlockNode toBlock(ParseTreeNode n) {
-        if (n == null || n.kind() != ParseTreeKind.BLOCK) return new BlockNode(SourceSpan.of(0, 0), List.of(), List.of());
+        if (n == null) return new BlockNode(SourceSpan.of(0, 0), List.of(), List.of());
+        if (n.kind() == ParseTreeKind.UPDATE_BLOCK && !n.children().isEmpty()) return toBlock(n.children().get(0));
+        if (n.kind() != ParseTreeKind.BLOCK) return new BlockNode(SourceSpan.of(0, 0), List.of(), List.of());
         List<ParseTreeNode> c = n.children();
         List<VarDeclNode> varDecls = new ArrayList<>();
         List<StatementNode> statements = new ArrayList<>();
@@ -293,7 +298,13 @@ public final class ParseTreeToAst {
 
     private static AssignStmtNode toAssignStmt(ParseTreeNode n) {
         List<ParseTreeNode> c = n.children();
-        ExprNode lvalue = toExprOrPlaceholder(child(c, 0));
+        ParseTreeNode lvalNode = child(c, 0);
+        ExprNode lvalue;
+        if (lvalNode != null && lvalNode.isTerminal() && lvalNode.token().type() == TokenType.IDENT) {
+            lvalue = new IdentExprNode(span(lvalNode), lvalNode.token().lexeme());
+        } else {
+            lvalue = toExprOrPlaceholder(lvalNode);
+        }
         ExprNode value = toExpr(child(c, 1));
         return new AssignStmtNode(span(n), lvalue, value != null ? value : new PlaceholderExprNode(span(n)));
     }

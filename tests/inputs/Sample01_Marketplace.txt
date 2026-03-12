@@ -1,6 +1,7 @@
 // Marketplace: Trader and Collector in a shared world. Collector drops items; Trader picks them up if nearby (neighbors).
 agent Drop {
     int x, y;
+    update{}
 }
 
 agent Collector {
@@ -18,6 +19,7 @@ agent Collector {
 
 agent Trader {
     int x, y;
+    Drop drops[];
 
     update {
         move(self.x + rand(-1, 1), self.y + rand(-1, 1));
@@ -38,7 +40,7 @@ world Marketplace {
             for (int i = 0; i < 3; i = i + 1) {
                 spawn Collector(rand(0, 20), rand(0, 20));
             }
-            for (int i = 0; i < 2; i = i + 1) {
+            for (int j = 0; j < 2; j = j + 1) {
                 spawn Trader(rand(0, 20), rand(0, 20));
             }
             spawned = true;
@@ -51,7 +53,9 @@ world Marketplace {
 }
 
 void main() {
+    int steps = 0;
     repeat {
         step();
+        steps=steps+1;
     } until (steps > 100);
 }

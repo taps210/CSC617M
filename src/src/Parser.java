@@ -385,8 +385,11 @@ public final class Parser {
         List<ParseTreeNode> children = new ArrayList<>();
         children.add(terminal(nameTok));
         while (match(TokenType.LBRACKET)) {
-            Token lit = consume(TokenType.INT_LIT, "Expected integer size in array dimension.");
-            children.add(terminal(lit));
+            if (match(TokenType.INT_LIT)) {
+                children.add(terminal(previous()));
+            } else {
+                children.add(terminal(peek()));
+            }
             consume(TokenType.RBRACKET, "Expected ']' after array dimension.");
         }
         if (match(TokenType.ASSIGN)) {
