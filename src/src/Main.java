@@ -244,7 +244,7 @@ public final class Main {
             return;
         }
         try {
-            new IrInterpreter(funcs, System.in, System.out).run();
+            new IrInterpreter(funcs, ast, System.in, System.out).run();
         } catch (Exception e) {
             System.err.println("Runtime error: " + e.getMessage());
             e.printStackTrace(System.err);

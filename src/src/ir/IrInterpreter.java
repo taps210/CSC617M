@@ -1,14 +1,18 @@
 package src.ir;
 
+import src.Ast;
+
 import java.io.*;
 import java.util.*;
 
 /**
  * Interprets three-address IR: executes instructions one by one using a store and program counter.
  * Runs main(); function calls push a frame and run callee IR.
+ * When ProgramNode is provided, ABM instructions (spawn, move, step, destroy, neighbors) use a minimal runtime.
  */
 public final class IrInterpreter {
     private final Map<String, FunctionIR> functions = new HashMap<>();
+    private final Ast.ProgramNode program;
     private Map<String, Object> store;
     private FunctionIR currentFunc;
     private int pc;
@@ -18,12 +22,73 @@ public final class IrInterpreter {
     private final InputStream in;
     private final PrintStream out;
 
+    /** ABM runtime state (used when program != null). */
+    private final List<AgentHandle> agents = new ArrayList<>();
+    private final Map<String, Object> worldStore = new HashMap<>();
+    private AgentHandle currentAgent;
+    private String worldName;
+    private int nextAgentId;
+
+    /** Identifies an agent for destroy/neighbors. Stored in agent list and in lists returned by neighbors(). */
+    public static final class AgentHandle {
+        public final int id;
+        public final String typeName;
+        public final Map<String, Object> store;
+
+        AgentHandle(int id, String typeName, Map<String, Object> store) {
+            this.id = id;
+            this.typeName = typeName;
+            this.store = store;
+        }
+    }
+
     public IrInterpreter(List<FunctionIR> program, InputStream in, PrintStream out) {
+        this(program, null, in, out);
+    }
+
+    public IrInterpreter(List<FunctionIR> funcs, Ast.ProgramNode program, InputStream in, PrintStream out) {
+        this.program = program;
         this.in = in != null ? in : System.in;
         this.out = out != null ? out : System.out;
-        for (FunctionIR f : program) {
+        for (FunctionIR f : funcs) {
             functions.put(f.name(), f);
         }
+        if (program != null) {
+            Ast.WorldDeclNode world = findFirstWorld(program);
+            if (world != null) {
+                worldName = world.name();
+                initWorldStore(world);
+            }
+        }
+    }
+
+    private static Ast.WorldDeclNode findFirstWorld(Ast.ProgramNode p) {
+        for (Ast.TypeDeclNode td : p.typeDecls()) {
+            if (td instanceof Ast.WorldDeclNode w) return w;
+        }
+        return null;
+    }
+
+    private void initWorldStore(Ast.WorldDeclNode world) {
+        for (Ast.VarDeclNode v : world.fields()) {
+            for (Ast.DeclaratorNode d : v.declarators()) {
+                Object init = d.init() != null ? evalLiteralInit(d.init()) : defaultForType(v.dataType().baseTypeName());
+                worldStore.put(d.name(), init);
+            }
+        }
+    }
+
+    private static Object evalLiteralInit(Ast.ExprNode e) {
+        if (e instanceof Ast.LiteralExprNode n) return n.value();
+        return 0;
+    }
+
+    private static Object defaultForType(String typeName) {
+        return switch (typeName.toLowerCase()) {
+            case "bool", "boolean" -> false;
+            case "float", "double" -> 0.0;
+            default -> 0;
+        };
     }
 
     /** Run main. Returns normally or throws on error. */
@@ -34,6 +99,11 @@ public final class IrInterpreter {
     }
 
     private void runFunction(FunctionIR func, List<Object> args) {
+        runFunction(func, args, null);
+    }
+
+    /** If initialStore != null, use it (for world_* / update_*); otherwise create fresh store and bind params. */
+    private void runFunction(FunctionIR func, List<Object> args, Map<String, Object> initialStore) {
         List<Instr> instructions = func.instructions();
         if (instructions.isEmpty()) return;
 
@@ -41,16 +111,17 @@ public final class IrInterpreter {
         FunctionIR prevFunc = currentFunc;
         int prevPc = pc;
         Map<String, Integer> prevLabels = labelMap;
+        AgentHandle prevAgent = currentAgent;
 
-        store = new HashMap<>();
+        store = initialStore != null ? initialStore : new HashMap<>();
+        if (initialStore == null) {
+            for (int i = 0; i < func.paramNames().size() && i < args.size(); i++) {
+                store.put(func.paramNames().get(i), args.get(i));
+            }
+        }
         labelMap = buildLabelMap(instructions);
         currentFunc = func;
         pc = 0;
-
-        for (int i = 0; i < func.paramNames().size() && i < args.size(); i++) {
-            store.put(func.paramNames().get(i), args.get(i));
-        }
-
         paramList.clear();
         returnValue = null;
 
@@ -68,6 +139,7 @@ public final class IrInterpreter {
             currentFunc = prevFunc;
             pc = prevPc;
             labelMap = prevLabels;
+            currentAgent = prevAgent;
         }
     }
 
@@ -95,7 +167,15 @@ public final class IrInterpreter {
         if (instr instanceof Instr.AssignBinary a) {
             Object left = get(a.left());
             Object right = get(a.right());
-            store.put(a.result(), evalBinary(left, a.op(), right));
+            Object resultVal;
+            if ("[]".equals(a.op())) {
+                resultVal = listIndex(left, right);
+            } else if (".".equals(a.op()) && a.right() instanceof Operand.VarOperand vr && "length".equals(vr.name()) && left instanceof List<?> list) {
+                resultVal = list.size();
+            } else {
+                resultVal = evalBinary(left, a.op(), right);
+            }
+            store.put(a.result(), resultVal);
             return true;
         }
         if (instr instanceof Instr.AssignUnary a) {
@@ -166,21 +246,24 @@ public final class IrInterpreter {
             out.println(vals.stream().map(Objects::toString).reduce((a, b) -> a + " " + b).orElse(""));
             return true;
         }
-        if (instr instanceof Instr.SpawnInstr) {
-            paramList.clear();
+        if (instr instanceof Instr.SpawnInstr s) {
+            if (program != null) abmSpawn(s); else paramList.clear();
             return true;
         }
-        if (instr instanceof Instr.MoveInstr) {
+        if (instr instanceof Instr.MoveInstr m) {
+            if (program != null) abmMove(m);
             return true;
         }
         if (instr instanceof Instr.StepInstr) {
+            if (program != null) abmStep();
             return true;
         }
-        if (instr instanceof Instr.DestroyInstr) {
+        if (instr instanceof Instr.DestroyInstr d) {
+            if (program != null) abmDestroy(d);
             return true;
         }
         if (instr instanceof Instr.NeighborsInstr n) {
-            if (n.result() != null) store.put(n.result(), List.of());
+            if (program != null) abmNeighbors(n); else if (n.result() != null) store.put(n.result(), List.of());
             return true;
         }
         if (instr instanceof Instr.AbmCallInstr a) {
@@ -234,6 +317,7 @@ public final class IrInterpreter {
             case ">=": return toInt(left) >= toInt(right);
             case "&&": return truthy(left) && truthy(right);
             case "||": return truthy(left) || truthy(right);
+            case ".": return left instanceof Map<?, ?> m && right != null ? m.get(right.toString()) : null;
             default: return 0;
         }
     }
@@ -306,6 +390,103 @@ public final class IrInterpreter {
         if (a == null || b == null) return false;
         if (a instanceof Number && b instanceof Number) return toDouble(a) == toDouble(b);
         return a.equals(b);
+    }
+
+    private static Object listIndex(Object listObj, Object indexObj) {
+        if (!(listObj instanceof List<?> list)) return null;
+        int i = toInt(indexObj);
+        if (i < 0 || i >= list.size()) return null;
+        return list.get(i);
+    }
+
+    private void abmStep() {
+        if (worldName == null) return;
+        FunctionIR pre = functions.get("world_" + worldName + "_pre");
+        FunctionIR post = functions.get("world_" + worldName + "_post");
+        if (pre != null) runFunction(pre, List.of(), worldStore);
+        List<AgentHandle> toUpdate = new ArrayList<>(agents);
+        for (AgentHandle agent : toUpdate) {
+            if (!agents.contains(agent)) continue; // was destroyed
+            FunctionIR update = functions.get("update_" + agent.typeName);
+            if (update != null) {
+                agent.store.put("self", agent);
+                currentAgent = agent;
+                runFunction(update, List.of(), agent.store);
+            }
+        }
+        if (post != null) runFunction(post, List.of(), worldStore);
+    }
+
+    private void abmSpawn(Instr.SpawnInstr s) {
+        String agentType = s.agentType();
+        List<Object> args = new ArrayList<>();
+        for (Operand o : s.args()) args.add(get(o));
+        paramList.clear();
+        Ast.AgentDeclNode decl = findAgentDecl(agentType);
+        if (decl == null) return;
+        Map<String, Object> agentStore = new HashMap<>();
+        List<String> fieldNames = new ArrayList<>();
+        for (Ast.VarDeclNode v : decl.fields()) {
+            for (Ast.DeclaratorNode d : v.declarators()) {
+                fieldNames.add(d.name());
+                Object init = d.init() != null ? evalLiteralInit(d.init()) : defaultForType(v.dataType().baseTypeName());
+                agentStore.put(d.name(), init);
+            }
+        }
+        for (int i = 0; i < args.size() && i < fieldNames.size(); i++) {
+            agentStore.put(fieldNames.get(i), args.get(i));
+        }
+        AgentHandle agent = new AgentHandle(nextAgentId++, agentType, agentStore);
+        agents.add(agent);
+    }
+
+    private void abmMove(Instr.MoveInstr m) {
+        if (currentAgent == null) return;
+        Object x = get(m.x());
+        Object y = get(m.y());
+        Object z = m.z() != null ? get(m.z()) : null;
+        currentAgent.store.put("x", x);
+        currentAgent.store.put("y", y);
+        if (z != null) currentAgent.store.put("z", z);
+    }
+
+    private void abmDestroy(Instr.DestroyInstr d) {
+        Object target = get(d.target());
+        if (target instanceof AgentHandle h) agents.remove(h);
+    }
+
+    private void abmNeighbors(Instr.NeighborsInstr n) {
+        if (n.args().size() < 2 || currentAgent == null) {
+            if (n.result() != null) store.put(n.result(), List.<AgentHandle>of());
+            return;
+        }
+        Object selfObj = get(n.args().get(0));
+        Object radiusObj = get(n.args().get(1));
+        if (!(selfObj instanceof AgentHandle self)) {
+            if (n.result() != null) store.put(n.result(), List.<AgentHandle>of());
+            return;
+        }
+        int radius = toInt(radiusObj);
+        int sx = toInt(self.store.get("x"));
+        int sy = toInt(self.store.get("y"));
+        List<AgentHandle> near = new ArrayList<>();
+        for (AgentHandle a : agents) {
+            if (a == self) continue;
+            int ax = toInt(a.store.get("x"));
+            int ay = toInt(a.store.get("y"));
+            int dx = Math.abs(ax - sx);
+            int dy = Math.abs(ay - sy);
+            if (dx <= radius && dy <= radius) near.add(a);
+        }
+        if (n.result() != null) store.put(n.result(), near);
+    }
+
+    private Ast.AgentDeclNode findAgentDecl(String name) {
+        if (program == null) return null;
+        for (Ast.TypeDeclNode td : program.typeDecls()) {
+            if (td instanceof Ast.AgentDeclNode a && a.name().equals(name)) return a;
+        }
+        return null;
     }
 
     private static Object parseInput(String line) {
