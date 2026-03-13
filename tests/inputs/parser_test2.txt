@@ -18,7 +18,9 @@ Foo* helperFooPtr() {  // function declaration with pointer return type (IDENT *
 
 void main() {
     // Just to exercise calls + assignment in main
+    int count=5;
+    string name = "ralph";
     g = helperFoo();
     gp = helperFooPtr();
-    print(g.x);
+    print(name);
 }

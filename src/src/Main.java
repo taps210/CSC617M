@@ -9,6 +9,7 @@ import src.ir.ControlFlowGraph;
 import src.ir.FunctionIR;
 import src.ir.IrBuilder;
 import src.ir.IrFormatter;
+import src.ir.IrInterpreter;
 import src.semantic.SemanticAnalyzer;
 
 import java.nio.file.*;
@@ -30,6 +31,7 @@ public final class Main {
                         java -cp build/classes/java/main src.Main --semantic --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --ir <inputFile>
                         java -cp build/classes/java/main src.Main --ir --out <outputFile> <inputFile>
+                        java -cp build/classes/java/main src.Main --run <inputFile>
                         java -cp build/classes/java/main src.Main --cfg <inputFile>
                         java -cp build/classes/java/main src.Main --cfg --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --bench <inputFile>
@@ -41,8 +43,8 @@ public final class Main {
         int i = 1;
         String outFile = null;
         if (i < args.length && args[i].equals("--out")) {
-            if (mode.equals("--bench")) {
-                System.out.println("--bench does not use --out.");
+            if (mode.equals("--bench") || mode.equals("--run")) {
+                System.out.println("--bench and --run do not use --out.");
                 return;
             }
             i++;
@@ -63,6 +65,7 @@ public final class Main {
             case "--parse" -> runParse(inFile, outFile);
             case "--semantic" -> runSemantic(inFile, outFile);
             case "--ir" -> runIr(inFile, outFile);
+            case "--run" -> runRun(inFile);
             case "--cfg" -> runCfg(inFile, outFile);
             case "--bench" -> runBench(inFile);
             default -> System.out.println("Unknown option: " + mode);
@@ -224,6 +227,27 @@ public final class Main {
             System.out.println("Wrote IR to: " + outputFile);
         } else {
             System.out.print(result);
+        }
+    }
+
+    // ---------------- RUN (INTERPRET) MODE ----------------
+
+    private static void runRun(String inputFile) throws Exception {
+        ProgramNode ast = parseAndAnalyze(inputFile, null);
+        if (ast == null) return;
+        List<FunctionIR> funcs;
+        try {
+            funcs = IrBuilder.buildProgram(ast);
+        } catch (Exception e) {
+            System.err.println("IR build failed: " + e.getMessage());
+            e.printStackTrace(System.err);
+            return;
+        }
+        try {
+            new IrInterpreter(funcs, System.in, System.out).run();
+        } catch (Exception e) {
+            System.err.println("Runtime error: " + e.getMessage());
+            e.printStackTrace(System.err);
         }
     }
 

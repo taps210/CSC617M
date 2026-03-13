@@ -22,29 +22,30 @@ public final class IrBuilder {
         for (FuncDeclNode f : program.funcDecls()) {
             IrBuilder b = new IrBuilder();
             b.buildFunctionBody(f.name(), f.body());
-            out.add(new FunctionIR(f.name(), new ArrayList<>(b.instructions)));
+            List<String> paramNames = f.params().stream().map(p -> p.name()).toList();
+            out.add(new FunctionIR(f.name(), paramNames, new ArrayList<>(b.instructions)));
         }
         if (program.main() != null) {
             IrBuilder b = new IrBuilder();
             b.buildFunctionBody("main", program.main().body());
-            out.add(new FunctionIR("main", new ArrayList<>(b.instructions)));
+            out.add(new FunctionIR("main", List.of(), new ArrayList<>(b.instructions)));
         }
         for (var td : program.typeDecls()) {
             if (td instanceof AgentDeclNode a && a.updateBlock() != null) {
                 IrBuilder b = new IrBuilder();
                 b.buildFunctionBody("update_" + a.name(), a.updateBlock());
-                out.add(new FunctionIR("update_" + a.name(), new ArrayList<>(b.instructions)));
+                out.add(new FunctionIR("update_" + a.name(), List.of(), new ArrayList<>(b.instructions)));
             }
             if (td instanceof WorldDeclNode w) {
                 if (w.preBlock() != null) {
                     IrBuilder b = new IrBuilder();
                     b.buildFunctionBody("world_" + w.name() + "_pre", w.preBlock());
-                    out.add(new FunctionIR("world_" + w.name() + "_pre", new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR("world_" + w.name() + "_pre", List.of(), new ArrayList<>(b.instructions)));
                 }
                 if (w.postBlock() != null) {
                     IrBuilder b = new IrBuilder();
                     b.buildFunctionBody("world_" + w.name() + "_post", w.postBlock());
-                    out.add(new FunctionIR("world_" + w.name() + "_post", new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR("world_" + w.name() + "_post", List.of(), new ArrayList<>(b.instructions)));
                 }
             }
         }
