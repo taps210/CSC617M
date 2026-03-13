@@ -27,4 +27,11 @@ public class CompileMetrics {
     public int parseErrorCount;
     public int parseWarningCount;
     public long parseTimeNs;
+
+    // IR
+    public int irInstrCount;
+    public long irTimeNs;
+
+    // Run
+    public long runTimeNs;
 }

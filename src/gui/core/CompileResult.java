@@ -20,11 +20,14 @@ public record CompileResult(
         List<CompileError> errors,
         CompileMetrics metrics,
         Optional<ProgramNode> ast,
-        Optional<ParseTreeNode> parseTree
+        Optional<ParseTreeNode> parseTree,
+        Optional<String> irText,
+        Optional<String> interpreterOutput
 ) {
     /** Legacy constructor without AST or parse tree (uses Optional.empty()). */
     public CompileResult(String sourceText, List<Token> tokens, String parserTrace,
                          List<CompileError> errors, CompileMetrics metrics) {
-        this(sourceText, tokens, parserTrace, errors, metrics, Optional.empty(), Optional.empty());
+        this(sourceText, tokens, parserTrace, errors, metrics, Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty());
     }
 }

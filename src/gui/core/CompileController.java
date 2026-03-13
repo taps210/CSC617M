@@ -12,7 +12,14 @@ import src.gui.model.CompileError;
 import src.parsetree.ParseTreeNode;
 import src.gui.model.CompileMetrics;
 import src.semantic.SemanticAnalyzer;
+import src.ir.IrBuilder;
+import src.ir.IrFormatter;
+import src.ir.FunctionIR;
+import src.ir.IrInterpreter;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -121,7 +128,43 @@ public class CompileController {
 
         metrics.parseWarningCount = 0; // v1: no warnings from parser
 
-        CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics, ast, parseTree);
+        // IR generation (only when AST present and no errors)
+        Optional<String> irText = Optional.empty();
+        Optional<String> interpreterOutput = Optional.empty();
+        List<FunctionIR> irFuncs = List.of();
+        boolean hasErrors = allErrors.stream().anyMatch(e -> e.severity() == CompileError.Severity.ERROR);
+        if (ast.isPresent() && !hasErrors) {
+            long ir0 = System.nanoTime();
+            try {
+                irFuncs = new IrBuilder().buildProgram(ast.get());
+                StringBuilder irSb = new StringBuilder();
+                for (FunctionIR f : irFuncs) {
+                    irSb.append(IrFormatter.formatFunctionIR(f)).append("\n");
+                    metrics.irInstrCount += f.instructions().size();
+                }
+                irText = Optional.of(irSb.toString());
+            } catch (Exception e) {
+                allErrors.add(new CompileError(0, 0, e.getMessage(), CompileError.Source.IR, CompileError.Severity.ERROR));
+            }
+            metrics.irTimeNs = System.nanoTime() - ir0;
+        }
+
+        // Interpretation (only when IR was built successfully)
+        if (irText.isPresent()) {
+            long run0 = System.nanoTime();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PrintStream capturedOut = new PrintStream(baos);
+            try {
+                new IrInterpreter(irFuncs, ast.get(), new ByteArrayInputStream(new byte[0]), capturedOut).run();
+            } catch (Exception e) {
+                allErrors.add(new CompileError(0, 0, e.getMessage(), CompileError.Source.RUNTIME, CompileError.Severity.ERROR));
+            }
+            metrics.runTimeNs = System.nanoTime() - run0;
+            interpreterOutput = Optional.of(baos.toString());
+        }
+
+        CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics, ast, parseTree,
+                irText, interpreterOutput);
         this.lastResult = result;
         for (CompileListener l : listeners) {
             l.onCompileComplete(result);
