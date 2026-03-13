@@ -276,7 +276,10 @@ public class SemanticAnalyzer {
         if (e instanceof TernaryExprNode t) return typeOfExpr(t.thenExpr());
         if (e instanceof AbmCallExprNode n) {
             if ("neighbors".equals(n.name())) return new DataTypeNode(n.location(), "agent_list", 0);
-            if ("rand".equals(n.name())) return new DataTypeNode(n.location(), "int", 0);
+            if ("rand".equals(n.name())) {
+                if (n.args().size() > 2) error(n.location(), "rand expects 0, 1, or 2 arguments but got " + n.args().size());
+                return new DataTypeNode(n.location(), "int", 0);
+            }
         }
         return new DataTypeNode(e.location(), "int", 0);
     }

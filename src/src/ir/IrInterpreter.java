@@ -267,12 +267,17 @@ public final class IrInterpreter {
             return true;
         }
         if (instr instanceof Instr.AbmCallInstr a) {
-            if ("rand".equals(a.name()) && a.args().size() >= 2) {
-                Object lo = get(a.args().get(0));
-                Object hi = get(a.args().get(1));
-                int low = toInt(lo);
-                int high = toInt(hi);
-                int v = low + (int) (Math.random() * (high - low + 1));
+            if ("rand".equals(a.name())) {
+                int lo, hi;
+                if (a.args().size() == 0) {
+                    lo = 0; hi = Integer.MAX_VALUE;
+                } else if (a.args().size() == 1) {
+                    lo = 0; hi = toInt(get(a.args().get(0)));
+                } else {
+                    lo = toInt(get(a.args().get(0)));
+                    hi = toInt(get(a.args().get(1)));
+                }
+                int v = lo + (int) (Math.random() * ((long)(hi - lo) + 1));
                 if (a.result() != null) store.put(a.result(), v);
             } else if (a.result() != null) {
                 store.put(a.result(), 0);
