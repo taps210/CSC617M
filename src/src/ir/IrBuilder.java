@@ -97,7 +97,7 @@ public final class IrBuilder {
             Operand cond = genExpr(n.condition());
             String LElse = nextLabel();
             String LEnd = nextLabel();
-            emit(new Instr.IfGotoInstr(cond, LElse));
+            emit(new Instr.IfZeroGotoInstr(cond, LElse));
             genStmt(n.thenBranch());
             emit(new Instr.GotoInstr(LEnd));
             emit(new Instr.LabelInstr(LElse));

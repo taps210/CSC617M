@@ -219,6 +219,8 @@ public final class IrInterpreter {
                 Object ret = returnValue;
                 returnValue = null;
                 if (c.result() != null && ret != null) store.put(c.result(), ret);
+            } else if ("_assert_fail".equals(c.funcName())) {
+                throw new RuntimeException("Assertion failed");
             }
             return true;
         }

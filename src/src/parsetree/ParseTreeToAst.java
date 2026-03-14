@@ -488,8 +488,10 @@ public final class ParseTreeToAst {
         if (first.isTerminal()) {
             Token t = first.token();
             if (t.type() == TokenType.LPAREN && c.size() > 1) return new ParenExprNode(span(n), toExpr(c.get(1)));
+            if (t.type() == TokenType.TRUE) return new LiteralExprNode(span(n), Boolean.TRUE);
+            if (t.type() == TokenType.FALSE) return new LiteralExprNode(span(n), Boolean.FALSE);
             if (t.type() == TokenType.INT_LIT || t.type() == TokenType.FLOAT_LIT || t.type() == TokenType.CHAR_LIT
-                    || t.type() == TokenType.STRING_LIT || t.type() == TokenType.TRUE || t.type() == TokenType.FALSE) {
+                    || t.type() == TokenType.STRING_LIT) {
                 return new LiteralExprNode(span(n), t.literal() != null ? t.literal() : t.lexeme());
             }
             if (t.type() == TokenType.NULL) return new NullExprNode(span(n));

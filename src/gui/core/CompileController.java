@@ -83,7 +83,7 @@ public class CompileController {
             Scanner scanner = new Scanner(sourceText);
             tokens = scanner.tokenizeAll(false, lexErrors);
         } catch (LexicalErrorRecord.ScanAbortedException e) {
-            if (e.getError() != null) lexErrors.add(e.getError());
+            // error already added to lexErrors by tokenizeAll before it rethrew
         }
         long t1 = System.nanoTime();
         metrics.scanTimeNs = t1 - t0;
