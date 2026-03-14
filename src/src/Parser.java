@@ -773,8 +773,9 @@ public final class Parser {
     private ParseTreeNode orExpr() {
         ParseTreeNode left = andExpr();
         while (match(TokenType.OROR)) {
+            Token opTok = previous();
             ParseTreeNode right = andExpr();
-            left = ParseTreeNode.of(ParseTreeKind.OR_EXPR, List.of(left, terminal(previous()), right), previous());
+            left = ParseTreeNode.of(ParseTreeKind.OR_EXPR, List.of(left, terminal(opTok), right), opTok);
         }
         return left;
     }
@@ -782,8 +783,9 @@ public final class Parser {
     private ParseTreeNode andExpr() {
         ParseTreeNode left = eqExpr();
         while (match(TokenType.ANDAND)) {
+            Token opTok = previous();
             ParseTreeNode right = eqExpr();
-            left = ParseTreeNode.of(ParseTreeKind.AND_EXPR, List.of(left, terminal(previous()), right), previous());
+            left = ParseTreeNode.of(ParseTreeKind.AND_EXPR, List.of(left, terminal(opTok), right), opTok);
         }
         return left;
     }
@@ -791,8 +793,9 @@ public final class Parser {
     private ParseTreeNode eqExpr() {
         ParseTreeNode left = relExpr();
         while (match(TokenType.EQEQ, TokenType.NEQ)) {
+            Token opTok = previous();
             ParseTreeNode right = relExpr();
-            left = ParseTreeNode.of(ParseTreeKind.EQ_EXPR, List.of(left, terminal(previous()), right), previous());
+            left = ParseTreeNode.of(ParseTreeKind.EQ_EXPR, List.of(left, terminal(opTok), right), opTok);
         }
         return left;
     }
@@ -800,8 +803,9 @@ public final class Parser {
     private ParseTreeNode relExpr() {
         ParseTreeNode left = addExpr();
         while (match(TokenType.LT, TokenType.LTE, TokenType.GT, TokenType.GTE)) {
+            Token opTok = previous();
             ParseTreeNode right = addExpr();
-            left = ParseTreeNode.of(ParseTreeKind.REL_EXPR, List.of(left, terminal(previous()), right), previous());
+            left = ParseTreeNode.of(ParseTreeKind.REL_EXPR, List.of(left, terminal(opTok), right), opTok);
         }
         return left;
     }
@@ -809,8 +813,9 @@ public final class Parser {
     private ParseTreeNode addExpr() {
         ParseTreeNode left = mulExpr();
         while (match(TokenType.PLUS, TokenType.MINUS)) {
+            Token opTok = previous();
             ParseTreeNode right = mulExpr();
-            left = ParseTreeNode.of(ParseTreeKind.ADD_EXPR, List.of(left, terminal(previous()), right), previous());
+            left = ParseTreeNode.of(ParseTreeKind.ADD_EXPR, List.of(left, terminal(opTok), right), opTok);
         }
         return left;
     }
@@ -818,8 +823,9 @@ public final class Parser {
     private ParseTreeNode mulExpr() {
         ParseTreeNode left = unaryExpr();
         while (match(TokenType.STAR, TokenType.SLASH, TokenType.MOD)) {
+            Token opTok = previous();
             ParseTreeNode right = unaryExpr();
-            left = ParseTreeNode.of(ParseTreeKind.MUL_EXPR, List.of(left, terminal(previous()), right), previous());
+            left = ParseTreeNode.of(ParseTreeKind.MUL_EXPR, List.of(left, terminal(opTok), right), opTok);
         }
         return left;
     }
