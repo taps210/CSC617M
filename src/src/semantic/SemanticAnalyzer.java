@@ -201,7 +201,6 @@ public class SemanticAnalyzer {
             return;
         }
         if (s instanceof StepStmtNode n) {
-            if (agentDepth == 0) error(n.location(), "step() is only valid inside an agent body");
             if (n.arg() != null) visitExpr(n.arg());
             return;
         }
