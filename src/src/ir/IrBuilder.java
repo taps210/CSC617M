@@ -4,8 +4,10 @@ import static src.Ast.*;
 
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Builds three-address IR from the AST. One function (or main) at a time.
@@ -16,34 +18,44 @@ public final class IrBuilder {
     private int labelCounter = 0;
     /** (breakLabel, continueLabel) for current loop. */
     private final Deque<String[]> loopLabels = new LinkedList<>();
+    /** Const name → literal value, for inline ConstOperand injection. */
+    private final Map<String, Object> constValues;
+
+    private IrBuilder(Map<String, Object> constValues) {
+        this.constValues = constValues;
+    }
 
     public static List<FunctionIR> buildProgram(ProgramNode program) {
+        Map<String, Object> constValues = new HashMap<>();
+        for (ConstDeclNode c : program.constDecls()) {
+            if (c.value() instanceof LiteralExprNode l) constValues.put(c.name(), l.value());
+        }
         List<FunctionIR> out = new ArrayList<>();
         for (FuncDeclNode f : program.funcDecls()) {
-            IrBuilder b = new IrBuilder();
+            IrBuilder b = new IrBuilder(constValues);
             b.buildFunctionBody(f.name(), f.body());
             List<String> paramNames = f.params().stream().map(p -> p.name()).toList();
             out.add(new FunctionIR(f.name(), paramNames, new ArrayList<>(b.instructions)));
         }
         if (program.main() != null) {
-            IrBuilder b = new IrBuilder();
+            IrBuilder b = new IrBuilder(constValues);
             b.buildFunctionBody("main", program.main().body());
             out.add(new FunctionIR("main", List.of(), new ArrayList<>(b.instructions)));
         }
         for (var td : program.typeDecls()) {
             if (td instanceof AgentDeclNode a && a.updateBlock() != null) {
-                IrBuilder b = new IrBuilder();
+                IrBuilder b = new IrBuilder(constValues);
                 b.buildFunctionBody("update_" + a.name(), a.updateBlock());
                 out.add(new FunctionIR("update_" + a.name(), List.of(), new ArrayList<>(b.instructions)));
             }
             if (td instanceof WorldDeclNode w) {
                 if (w.preBlock() != null) {
-                    IrBuilder b = new IrBuilder();
+                    IrBuilder b = new IrBuilder(constValues);
                     b.buildFunctionBody("world_" + w.name() + "_pre", w.preBlock());
                     out.add(new FunctionIR("world_" + w.name() + "_pre", List.of(), new ArrayList<>(b.instructions)));
                 }
                 if (w.postBlock() != null) {
-                    IrBuilder b = new IrBuilder();
+                    IrBuilder b = new IrBuilder(constValues);
                     b.buildFunctionBody("world_" + w.name() + "_post", w.postBlock());
                     out.add(new FunctionIR("world_" + w.name() + "_post", List.of(), new ArrayList<>(b.instructions)));
                 }
@@ -269,6 +281,7 @@ public final class IrBuilder {
             return Operand.temp(t);
         }
         if (e instanceof IdentExprNode n) {
+            if (constValues.containsKey(n.name())) return Operand.constant(constValues.get(n.name()));
             return Operand.var(n.name());
         }
         if (e instanceof SelfExprNode) {

@@ -14,6 +14,7 @@ public class SemanticAnalyzer {
     private final List<SemanticError> errors = new ArrayList<>();
     private final SymbolTable table = new SymbolTable();
     private int agentDepth = 0;
+    private DataTypeNode currentReturnType = null; // null = void (main or no function)
 
     public List<SemanticError> analyze(ProgramNode program) {
         errors.clear();
@@ -100,7 +101,10 @@ public class SemanticAnalyzer {
             if (table.definedInCurrentScope(p.name())) error(p.location(), "Duplicate parameter: " + p.name());
             else table.define(SymbolTable.Symbol.variable(p.name(), p.dataType(), p.location()));
         }
+        DataTypeNode prevReturn = currentReturnType;
+        currentReturnType = n.returnType();
         visitBlock(n.body());
+        currentReturnType = prevReturn;
         table.popScope();
     }
 
@@ -114,7 +118,10 @@ public class SemanticAnalyzer {
 
     private void visitMain(MainFunctionNode main) {
         table.pushScope();
+        DataTypeNode prevReturn = currentReturnType;
+        currentReturnType = new DataTypeNode(main.location(), "void", 0);
         visitBlock(main.body());
+        currentReturnType = prevReturn;
         table.popScope();
     }
 
@@ -173,6 +180,7 @@ public class SemanticAnalyzer {
         }
         if (s instanceof ReturnStmtNode n) {
             if (n.value() != null) visitExpr(n.value());
+            checkReturnType(n);
             return;
         }
         if (s instanceof AssertStmtNode n) { visitExpr(n.condition()); return; }
@@ -186,20 +194,25 @@ public class SemanticAnalyzer {
             return;
         }
         if (s instanceof MoveStmtNode n) {
+            if (agentDepth == 0) error(n.location(), "move() is only valid inside an agent body");
             visitExpr(n.x());
             visitExpr(n.y());
             if (n.z() != null) visitExpr(n.z());
             return;
         }
         if (s instanceof StepStmtNode n) {
+            if (agentDepth == 0) error(n.location(), "step() is only valid inside an agent body");
             if (n.arg() != null) visitExpr(n.arg());
             return;
         }
         if (s instanceof DestroyStmtNode n) {
+            if (agentDepth == 0) error(n.location(), "destroy() is only valid inside an agent body");
             visitExpr(n.target());
             return;
         }
         if (s instanceof AbmCallStmtNode n) {
+            if ("neighbors".equals(n.name()) && n.args().size() > 2)
+                error(n.location(), "neighbors expects 0, 1, or 2 arguments but got " + n.args().size());
             for (ExprNode a : n.args()) visitExpr(a);
             return;
         }
@@ -246,7 +259,12 @@ public class SemanticAnalyzer {
         if (e instanceof UnaryExprNode n) { visitExpr(n.operand()); return; }
         if (e instanceof TernaryExprNode n) { visitExpr(n.condition()); visitExpr(n.thenExpr()); visitExpr(n.elseExpr()); return; }
         if (e instanceof ParenExprNode n) { visitExpr(n.inner()); return; }
-        if (e instanceof AbmCallExprNode n) { for (ExprNode a : n.args()) visitExpr(a); return; }
+        if (e instanceof AbmCallExprNode n) {
+            if ("neighbors".equals(n.name()) && n.args().size() > 2)
+                error(n.location(), "neighbors expects 0, 1, or 2 arguments but got " + n.args().size());
+            for (ExprNode a : n.args()) visitExpr(a);
+            return;
+        }
         // LiteralExprNode, NullExprNode, PlaceholderExprNode: no resolution
     }
 
@@ -298,6 +316,31 @@ public class SemanticAnalyzer {
             return new DataTypeNode(n.location(), "int", 0);
         }
         return null;
+    }
+
+    private void checkReturnType(ReturnStmtNode n) {
+        boolean isVoidContext = currentReturnType == null || "void".equals(currentReturnType.baseTypeName());
+        if (n.value() == null) {
+            if (!isVoidContext)
+                error(n.location(), "Missing return value in function returning " + currentReturnType.baseTypeName());
+        } else {
+            if (isVoidContext) {
+                error(n.location(), "void function must not return a value");
+            } else {
+                DataTypeNode actual = typeOfExpr(n.value());
+                if (!typesCompatible(currentReturnType.baseTypeName(), actual.baseTypeName()))
+                    error(n.location(), "Return type mismatch: expected " + currentReturnType.baseTypeName()
+                            + " but got " + actual.baseTypeName());
+            }
+        }
+    }
+
+    /** Numeric types are mutually compatible; otherwise names must match. */
+    private static boolean typesCompatible(String expected, String actual) {
+        if (expected.equals(actual)) return true;
+        boolean expNum = expected.equals("int") || expected.equals("float");
+        boolean actNum = actual.equals("int") || actual.equals("float");
+        return expNum && actNum;
     }
 
     private void error(SourceSpan loc, String message) {
