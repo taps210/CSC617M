@@ -37,6 +37,8 @@ public final class IrFormatter {
         if (i instanceof Instr.ReturnInstr r) return r.value() != null ? "return " + formatOperand(r.value()) : "return";
         if (i instanceof Instr.ReadInstr r) return "read " + formatOperand(r.lvalue());
         if (i instanceof Instr.PrintInstr p) return "print " + p.args().stream().map(IrFormatter::formatOperand).collect(Collectors.joining(", "));
+        if (i instanceof Instr.AllocArrayInstr a) return a.result() + " = new array[" + a.size() + "]";
+        if (i instanceof Instr.ArrayStoreInstr a) return a.arrayName() + "[" + formatOperand(a.index()) + "] = " + formatOperand(a.value());
         if (i instanceof Instr.SpawnInstr s) return "spawn " + s.agentType() + "(" + s.args().stream().map(IrFormatter::formatOperand).collect(Collectors.joining(", ")) + ")";
         if (i instanceof Instr.MoveInstr m) return "move(" + formatOperand(m.x()) + ", " + formatOperand(m.y()) + ", " + (m.z() != null ? formatOperand(m.z()) : "null") + ")";
         if (i instanceof Instr.StepInstr s) return "step(" + (s.arg() != null ? formatOperand(s.arg()) : "") + ")";

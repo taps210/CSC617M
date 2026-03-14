@@ -68,7 +68,10 @@ public final class IrBuilder {
         if (body == null) return;
         for (VarDeclNode v : body.varDecls()) {
             for (DeclaratorNode d : v.declarators()) {
-                if (d.init() != null) {
+                if (!d.arrayDims().isEmpty()) {
+                    int size = d.arrayDims().get(0);
+                    emit(new Instr.AllocArrayInstr(d.name(), size, 0));
+                } else if (d.init() != null) {
                     Operand val = genExpr(d.init());
                     emit(new Instr.AssignCopy(d.name(), val));
                 }
@@ -81,9 +84,17 @@ public final class IrBuilder {
 
     private void genStmt(StatementNode s) {
         if (s instanceof AssignStmtNode n) {
-            Operand val = genExpr(n.value());
-            String target = lvalueName(n.lvalue());
-            emit(new Instr.AssignCopy(target, val));
+            ExprNode lv = n.lvalue();
+            if (lv instanceof BinaryExprNode b && "[]".equals(b.op())) {
+                String arrayName = lvalueName(b.left());
+                Operand index = genExpr(b.right());
+                Operand val = genExpr(n.value());
+                emit(new Instr.ArrayStoreInstr(arrayName, index, val));
+            } else {
+                Operand val = genExpr(n.value());
+                String target = lvalueName(lv);
+                emit(new Instr.AssignCopy(target, val));
+            }
             return;
         }
         if (s instanceof CallStmtNode n) {
@@ -219,7 +230,10 @@ public final class IrBuilder {
         if (block == null) return;
         for (VarDeclNode v : block.varDecls()) {
             for (DeclaratorNode d : v.declarators()) {
-                if (d.init() != null) {
+                if (!d.arrayDims().isEmpty()) {
+                    int size = d.arrayDims().get(0);
+                    emit(new Instr.AllocArrayInstr(d.name(), size, 0));
+                } else if (d.init() != null) {
                     emit(new Instr.AssignCopy(d.name(), genExpr(d.init())));
                 }
             }

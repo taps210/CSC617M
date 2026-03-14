@@ -9,6 +9,7 @@ public sealed interface Instr
         permits Instr.LabelInstr, Instr.AssignBinary, Instr.AssignUnary, Instr.AssignCopy, Instr.AssignConst,
         Instr.GotoInstr, Instr.IfGotoInstr, Instr.IfZeroGotoInstr, Instr.ParamInstr, Instr.CallInstr, Instr.ReturnInstr,
         Instr.ReadInstr, Instr.PrintInstr,
+        Instr.AllocArrayInstr, Instr.ArrayStoreInstr,
         Instr.SpawnInstr, Instr.MoveInstr, Instr.StepInstr, Instr.DestroyInstr, Instr.NeighborsInstr, Instr.AbmCallInstr {
 
     /** Label (target for goto / if-goto). */
@@ -49,6 +50,12 @@ public sealed interface Instr
 
     /** print(args). */
     record PrintInstr(List<Operand> args) implements Instr {}
+
+    /** result = new array[size] filled with defaultVal. */
+    record AllocArrayInstr(String result, int size, Object defaultVal) implements Instr {}
+
+    /** arrayName[index] = value. */
+    record ArrayStoreInstr(String arrayName, Operand index, Operand value) implements Instr {}
 
     /** spawn agentType(args). */
     record SpawnInstr(String agentType, List<Operand> args) implements Instr {}

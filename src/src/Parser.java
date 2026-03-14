@@ -516,12 +516,11 @@ public final class Parser {
         } else if (match(TokenType.READ)) {
             Token kw = previous();
             consume(TokenType.LPAREN, "Expected '(' after read.");
-            Token start = peek();
-            lvalue();
+            ParseTreeNode lvalNode = lvalue();
             consume(TokenType.RPAREN, "Expected ')' after read(...).");
             consume(TokenType.SEMI, "Expected ';' after I/O statement.");
             emit("I/O statement (read)", kw);
-            inner = ParseTreeNode.of(ParseTreeKind.READ_STMT, List.of(terminal(start)), kw);
+            inner = ParseTreeNode.of(ParseTreeKind.READ_STMT, List.of(lvalNode), kw);
         } else if (match(TokenType.PRINT)) {
             Token kw = previous();
             consume(TokenType.LPAREN, "Expected '(' after print.");
@@ -573,11 +572,11 @@ public final class Parser {
 
     private ParseTreeNode assignStmt() {
         Token start = peek();
-        lvalue();
+        ParseTreeNode lvalNode = lvalue();
         consume(TokenType.ASSIGN, "Expected '=' in assignment.");
         ParseTreeNode value = expr();
         emit("Assignment statement", start);
-        return ParseTreeNode.of(ParseTreeKind.ASSIGN_STMT, List.of(terminal(start), value), start);
+        return ParseTreeNode.of(ParseTreeKind.ASSIGN_STMT, List.of(lvalNode, value), start);
     }
 
     private ParseTreeNode callStmt() {
@@ -664,29 +663,36 @@ public final class Parser {
     // -------------------------
     // Lvalues (supports *lvalue)
     // -------------------------
-    private void lvalue() {
+    private ParseTreeNode lvalue() {
+        List<ParseTreeNode> children = new ArrayList<>();
         if (match(TokenType.STAR)) {
-            lvalue();
-            return;
+            return lvalue(); // pointer dereference — consume and return inner
         }
         if (match(TokenType.SELF)) {
+            Token selfTok = previous();
             consume(TokenType.DOT, "Expected '.' after self.");
-            consume(TokenType.IDENT, "Expected field name after '.'.");
-            lvalueTail();
-            return;
+            Token field = consume(TokenType.IDENT, "Expected field name after '.'.");
+            // ATOM structure mirrors atom(): [SELF, placeholder, field] so toAtom sees size > 2
+            children.add(ParseTreeNode.of(ParseTreeKind.ATOM,
+                    List.of(terminal(selfTok), terminal(field), terminal(field)), selfTok));
+        } else {
+            Token ident = consume(TokenType.IDENT, "Expected identifier in lvalue.");
+            children.add(ParseTreeNode.of(ParseTreeKind.ATOM, List.of(terminal(ident)), ident));
         }
-        consume(TokenType.IDENT, "Expected identifier in lvalue.");
-        lvalueTail();
+        lvalueTail(children);
+        return ParseTreeNode.of(ParseTreeKind.PRIMARY, children, null);
     }
 
-    private void lvalueTail() {
+    private void lvalueTail(List<ParseTreeNode> children) {
         while (true) {
             if (match(TokenType.DOT)) {
-                consume(TokenType.IDENT, "Expected field name after '.'.");
+                children.add(terminal(previous()));
+                children.add(terminal(consume(TokenType.IDENT, "Expected field name after '.'.")));
                 continue;
             }
             if (match(TokenType.LBRACKET)) {
-                expr();
+                children.add(terminal(previous())); // LBRACKET terminal
+                children.add(expr());               // index expression
                 consume(TokenType.RBRACKET, "Expected ']' after index.");
                 continue;
             }

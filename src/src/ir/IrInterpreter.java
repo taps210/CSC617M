@@ -13,6 +13,7 @@ import java.util.*;
 public final class IrInterpreter {
     private final Map<String, FunctionIR> functions = new HashMap<>();
     private final Ast.ProgramNode program;
+    private final Map<String, Object> constStore = new HashMap<>();
     private Map<String, Object> store;
     private FunctionIR currentFunc;
     private int pc;
@@ -54,6 +55,10 @@ public final class IrInterpreter {
             functions.put(f.name(), f);
         }
         if (program != null) {
+            for (Ast.ConstDeclNode c : program.constDecls()) {
+                Object val = c.value() instanceof Ast.LiteralExprNode l ? l.value() : 0;
+                constStore.put(c.name(), val);
+            }
             Ast.WorldDeclNode world = findFirstWorld(program);
             if (world != null) {
                 worldName = world.name();
@@ -248,6 +253,20 @@ public final class IrInterpreter {
             out.println(vals.stream().map(Objects::toString).reduce((a, b) -> a + " " + b).orElse(""));
             return true;
         }
+        if (instr instanceof Instr.AllocArrayInstr a) {
+            List<Object> arr = new ArrayList<>(java.util.Collections.nCopies(a.size(), a.defaultVal()));
+            store.put(a.result(), arr);
+            return true;
+        }
+        if (instr instanceof Instr.ArrayStoreInstr a) {
+            Object arrObj = store.get(a.arrayName());
+            if (arrObj instanceof List<?>) {
+                @SuppressWarnings("unchecked") List<Object> arr = (List<Object>) arrObj;
+                int idx = toInt(get(a.index()));
+                if (idx >= 0 && idx < arr.size()) arr.set(idx, get(a.value()));
+            }
+            return true;
+        }
         if (instr instanceof Instr.SpawnInstr s) {
             if (program != null) abmSpawn(s); else paramList.clear();
             return true;
@@ -291,7 +310,10 @@ public final class IrInterpreter {
 
     private Object get(Operand o) {
         if (o instanceof Operand.ConstOperand c) return c.value();
-        if (o instanceof Operand.VarOperand v) return store.get(v.name());
+        if (o instanceof Operand.VarOperand v) {
+            Object val = store != null ? store.get(v.name()) : null;
+            return val != null ? val : constStore.get(v.name());
+        }
         if (o instanceof Operand.TempOperand t) return store.get(t.name());
         return null;
     }
