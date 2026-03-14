@@ -1,0 +1,57 @@
+// Execution Order Verification
+//
+// Verifies that each step() runs in exactly this order:
+//   1. world.pre  (runs once)
+//   2. agent.update  (runs for every live agent)
+//   3. world.post  (runs once)
+//
+// Expected output pattern per step:
+//   [pre] tick N
+//   [Marker] update N
+//   [post] tick N
+//
+// If lines appear out of order, the step() cycle is broken.
+//
+// Run: ./gradlew run --args="--run examples/Example03_ExecutionOrder.hd"
+
+agent Marker {
+    int x, y;
+    int id;
+
+    update {
+        print("  [Marker] update id =", id, "@ step", 0);
+    }
+}
+
+world Sequencer {
+    int width = 5;
+    int height = 5;
+    bool spawned = false;
+    int tick = 0;
+
+    pre {
+        if (!spawned) {
+            spawn Marker(0, 0);
+            spawn Marker(1, 0);
+            spawn Marker(2, 0);
+            spawned = true;
+        }
+        print("[pre] tick =", tick);
+    }
+
+    post {
+        tick = tick + 1;
+        print("[post] tick =", tick);
+    }
+}
+
+void main() {
+    int steps = 0;
+    print("=== Execution Order Test ===");
+    print("Expected: [pre] then [Marker] updates then [post], each step");
+    repeat {
+        step();
+        steps = steps + 1;
+    } until (steps >= 3);
+    print("=== Done. Ran", steps, "steps ===");
+}

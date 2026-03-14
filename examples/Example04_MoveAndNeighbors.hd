@@ -1,0 +1,79 @@
+// Move and Neighbors Correctness Test
+//
+// Verifies:
+//   1. move() correctly updates self.x and self.y
+//   2. neighbors(self, radius) returns agents within Chebyshev radius
+//   3. neighbors() does NOT return the calling agent itself
+//   4. agents outside the radius are NOT returned
+//
+// Setup:
+//   - One Anchor agent placed at (10, 10), never moves
+//   - One Seeker agent starts far away (0, 0), moves 2 steps per tick toward (10, 10)
+//   - When Seeker is within radius 3 of Anchor, it reports the find
+//
+// Run: ./gradlew run --args="--run examples/Example04_MoveAndNeighbors.hd"
+
+agent Anchor {
+    int x, y;
+    update {
+        // Stays put — position should never change
+    }
+}
+
+agent Seeker {
+    int x, y;
+    Anchor found[];
+
+    update {
+        // Move toward (10, 10) by up to 2 each axis per step
+        int nx;
+        int ny;
+        if (self.x < 10) {
+            nx = self.x + 2;
+        } else {
+            nx = self.x;
+        }
+        if (self.y < 10) {
+            ny = self.y + 2;
+        } else {
+            ny = self.y;
+        }
+        move(nx, ny);
+
+        found = neighbors(self, 3);
+        if (found.length > 0) {
+            print("  [Seeker] found Anchor! Seeker pos = (", self.x, ",", self.y, ") neighbors =", found.length);
+        } else {
+            print("  [Seeker] not found yet. pos = (", self.x, ",", self.y, ")");
+        }
+    }
+}
+
+world TestGrid {
+    int width = 20;
+    int height = 20;
+    bool spawned = false;
+
+    pre {
+        if (!spawned) {
+            spawn Anchor(10, 10);
+            spawn Seeker(0, 0);
+            spawned = true;
+            print("[World] Anchor at (10,10), Seeker starting at (0,0)");
+        }
+    }
+
+    post {}
+}
+
+void main() {
+    int steps = 0;
+    print("=== Move and Neighbors Test ===");
+    print("Seeker moves +2 per step toward Anchor at (10,10).");
+    print("Should report 'found Anchor' once within radius 3.");
+    repeat {
+        step();
+        steps = steps + 1;
+    } until (steps >= 8);
+    print("=== Done. Ran", steps, "steps ===");
+}

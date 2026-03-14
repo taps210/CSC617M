@@ -22,6 +22,7 @@ public final class IrBuilder {
     private static final String FN_PREFIX_WORLD  = "world_";
     private static final String FN_SUFFIX_PRE    = "_pre";
     private static final String FN_SUFFIX_POST   = "_post";
+    public  static final String FN_PREFIX_ZONE   = "zone_";
 
     private final List<Instr> instructions = new ArrayList<>();
     private int tempCounter = 0;
@@ -59,6 +60,14 @@ public final class IrBuilder {
                 b.buildFunctionBody(updateName, a.updateBlock());
                 out.add(new FunctionIR(updateName, List.of(), new ArrayList<>(b.instructions)));
             }
+            if (td instanceof AgentDeclNode a) {
+                for (ZoneDeclNode z : a.zones()) {
+                    String zoneName = FN_PREFIX_ZONE + a.name() + "_" + z.name();
+                    IrBuilder b = new IrBuilder(constValues);
+                    b.buildZoneBody(z.condition(), z.block());
+                    out.add(new FunctionIR(zoneName, List.of(), new ArrayList<>(b.instructions)));
+                }
+            }
             if (td instanceof WorldDeclNode w) {
                 if (w.preBlock() != null) {
                     String preName = FN_PREFIX_WORLD + w.name() + FN_SUFFIX_PRE;
@@ -87,6 +96,14 @@ public final class IrBuilder {
 
     private void emit(Instr i) {
         instructions.add(i);
+    }
+
+    private void buildZoneBody(ExprNode condition, BlockNode body) {
+        Operand cond = genExpr(condition);
+        String LEnd = nextLabel();
+        emit(new Instr.IfZeroGotoInstr(cond, LEnd));
+        genBlock(body);
+        emit(new Instr.LabelInstr(LEnd));
     }
 
     private void buildFunctionBody(String funcName, BlockNode body) {

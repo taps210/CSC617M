@@ -30,6 +30,7 @@ public final class IrInterpreter {
     private static final String FN_PREFIX_WORLD  = "world_";
     private static final String FN_SUFFIX_PRE    = "_pre";
     private static final String FN_SUFFIX_POST   = "_post";
+    private static final String FN_PREFIX_ZONE   = "zone_";
 
     private final Map<String, FunctionIR> functions = new HashMap<>();
     private final Ast.ProgramNode program;
@@ -497,6 +498,19 @@ public final class IrInterpreter {
                 agent.store.put(KEY_SELF, agent);
                 currentAgent = agent;
                 runFunction(update, List.of(), agent.store);
+            }
+            if (!agents.contains(agent)) continue; // destroyed during update
+            Ast.AgentDeclNode decl = findAgentDecl(agent.typeName);
+            if (decl != null) {
+                for (Ast.ZoneDeclNode z : decl.zones()) {
+                    FunctionIR zoneFunc = functions.get(FN_PREFIX_ZONE + agent.typeName + "_" + z.name());
+                    if (zoneFunc != null) {
+                        agent.store.put(KEY_SELF, agent);
+                        currentAgent = agent;
+                        runFunction(zoneFunc, List.of(), agent.store);
+                    }
+                    if (!agents.contains(agent)) break; // destroyed during a zone
+                }
             }
         }
         if (post != null) runFunction(post, List.of(), worldStore);
