@@ -18,7 +18,6 @@ public final class IrBuilder {
     private static final String FN_NEIGHBORS     = "neighbors";
     private static final String OP_ARRAY_ACCESS  = "[]";
     private static final String KEY_SELF         = "self";
-    private static final String KEY_SELF_PREFIX  = KEY_SELF + ".";
     private static final String FN_PREFIX_UPDATE = "update_";
     private static final String FN_PREFIX_WORLD  = "world_";
     private static final String FN_SUFFIX_PRE    = "_pre";
@@ -284,7 +283,7 @@ public final class IrBuilder {
     private String lvalueName(ExprNode lvalue) {
         if (lvalue instanceof IdentExprNode n) return n.name();
         if (lvalue instanceof LvalueExprNode n) return n.baseName();
-        if (lvalue instanceof SelfFieldExprNode n) return KEY_SELF_PREFIX + n.fieldName();
+        if (lvalue instanceof SelfFieldExprNode n) return n.fieldName();
         return "?";
     }
 
@@ -302,7 +301,7 @@ public final class IrBuilder {
             return Operand.var(KEY_SELF);
         }
         if (e instanceof SelfFieldExprNode n) {
-            return Operand.var(KEY_SELF_PREFIX + n.fieldName());
+            return Operand.var(n.fieldName());
         }
         if (e instanceof NullExprNode) {
             String t = nextTemp();

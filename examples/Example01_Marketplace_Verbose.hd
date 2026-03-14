@@ -1,0 +1,95 @@
+// Marketplace: Verbose version with print() to observe the simulation.
+//
+// How the ABM loop works each step():
+//   1. world.pre  -- runs once before agents act (used here for one-time spawning)
+//   2. agent.update -- runs for every live agent (Collector drops items, Trader picks them up)
+//   3. world.post -- runs once after all agents act (tick counter + periodic status)
+//
+// Observable output lets you verify:
+//   - Agents are spawned on tick 0 (pre block, guarded by 'spawned' flag)
+//   - Collectors deplete their item supply over 5 steps each
+//   - Traders find and destroy nearby Drop agents via neighbors()
+//   - World tick advances every step (printed every 25 ticks)
+//   - Final step count printed from main()
+//
+// Run: ./gradlew run --args="--run examples/Example01_Marketplace_Verbose.hd"
+
+// Drop is a passive agent representing a dropped item in the world.
+agent Drop {
+    int x, y;
+    update {}
+}
+
+// Collector moves randomly and spawns a Drop at its position each step
+// until its item supply (5) is exhausted.
+agent Collector {
+    int x, y;
+    int items = 5;
+
+    update {
+        move(self.x + rand(-1, 1), self.y + rand(-1, 1));
+        if (items == 1) {
+            print("  [Collector] dropping last item");
+        }
+        if (items > 0) {
+            spawn Drop(self.x, self.y);
+            items = items - 1;
+        }
+    }
+}
+
+// Trader moves randomly and destroys any Drop within radius 2 (Chebyshev distance).
+// neighbors() returns all agents of any type within that radius.
+agent Trader {
+    int x, y;
+    Drop drops[];
+
+    update {
+        move(self.x + rand(-1, 1), self.y + rand(-1, 1));
+        drops = neighbors(self, 2);
+        if (drops.length > 0) {
+            print("  [Trader] picked up a drop (", drops.length, "nearby)");
+            destroy(drops[0]);
+        }
+    }
+}
+
+world Marketplace {
+    int width = 20;
+    int height = 20;
+    bool spawned = false;
+    int tick = 0;
+
+    // pre runs before agent updates each step.
+    // The 'spawned' guard ensures initial population is created exactly once.
+    pre {
+        if (!spawned) {
+            for (int i = 0; i < 3; i = i + 1) {
+                spawn Collector(rand(0, 20), rand(0, 20));
+            }
+            for (int j = 0; j < 2; j = j + 1) {
+                spawn Trader(rand(0, 20), rand(0, 20));
+            }
+            spawned = true;
+            print("[World.pre] Spawned 3 Collectors and 2 Traders");
+        }
+    }
+
+    // post runs after all agent updates each step.
+    post {
+        tick = tick + 1;
+        if (tick % 25 == 0) {
+            print("[World.post] tick =", tick);
+        }
+    }
+}
+
+void main() {
+    int steps = 0;
+    print("=== Marketplace simulation starting ===");
+    repeat {
+        step();
+        steps = steps + 1;
+    } until (steps > 100);
+    print("=== Done. Ran", steps, "steps ===");
+}

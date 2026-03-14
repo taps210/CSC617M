@@ -520,6 +520,9 @@ public final class IrInterpreter {
         for (int i = 0; i < args.size() && i < fieldNames.size(); i++) {
             agentStore.put(fieldNames.get(i), args.get(i));
         }
+        agentStore.putIfAbsent("x", 0);
+        agentStore.putIfAbsent("y", 0);
+        agentStore.putIfAbsent("z", 0);
         agents.add(new AgentHandle(nextAgentId++, s.agentType(), agentStore));
     }
 
@@ -536,6 +539,8 @@ public final class IrInterpreter {
         if (target instanceof AgentHandle h) agents.remove(h);
     }
 
+    private static final List<String> DEFAULT_POSITION_FIELDS = List.of("x", "y", "z");
+
     private void abmNeighbors(Instr.NeighborsInstr n) {
         if (n.args().size() < 2 || currentAgent == null) {
             if (n.result() != null) store.put(n.result(), List.<AgentHandle>of());
@@ -548,14 +553,24 @@ public final class IrInterpreter {
             return;
         }
         int radius = toInt(radiusObj);
-        int sx = toInt(self.store.get("x"));
-        int sy = toInt(self.store.get("y"));
+        List<String> fields = DEFAULT_POSITION_FIELDS;
+        if (n.args().size() >= 3) {
+            Object fieldsObj = get(n.args().get(2));
+            if (fieldsObj instanceof List<?> fl && !fl.isEmpty()) {
+                fields = fl.stream().map(Object::toString).toList();
+            }
+        }
         List<AgentHandle> near = new ArrayList<>();
         for (AgentHandle a : agents) {
             if (a == self) continue;
-            int dx = Math.abs(toInt(a.store.get("x")) - sx);
-            int dy = Math.abs(toInt(a.store.get("y")) - sy);
-            if (dx <= radius && dy <= radius) near.add(a);
+            boolean within = true;
+            for (String field : fields) {
+                if (Math.abs(toInt(a.store.get(field)) - toInt(self.store.get(field))) > radius) {
+                    within = false;
+                    break;
+                }
+            }
+            if (within) near.add(a);
         }
         if (n.result() != null) store.put(n.result(), near);
     }

@@ -471,7 +471,7 @@ public final class ParseTreeToAst {
                     e = new BinaryExprNode(span(n), e, "[]", index != null ? index : new PlaceholderExprNode(span(n)));
                     i++;
                 } else if (op.token().type() == TokenType.DOT) {
-                    String field = i + 1 < c.size() ? identLexeme(c.get(i + 1).children(), 0) : "";
+                    String field = identLexeme(c, i + 1);
                     e = new BinaryExprNode(span(n), e, ".", new IdentExprNode(span(n), field));
                     i++;
                 }

@@ -196,17 +196,27 @@ public final class Main {
             writeResult(sb.toString(), outputFile, "interpreter output");
             return;
         }
-        var buffer = new ByteArrayOutputStream();
-        var ps = new PrintStream(buffer);
-        try {
-            new IrInterpreter(funcs, ast, System.in, ps).run();
-        } catch (Exception e) {
-            sb.append("Runtime error: ").append(e.getMessage()).append(System.lineSeparator());
-            writeResult(sb.toString(), outputFile, "interpreter output");
-            return;
+        if (outputFile != null) {
+            // Capture to file: buffer first, then write when done
+            var buffer = new ByteArrayOutputStream();
+            var ps = new PrintStream(buffer);
+            try {
+                new IrInterpreter(funcs, ast, System.in, ps).run();
+            } catch (Exception e) {
+                sb.append("Runtime error: ").append(e.getMessage()).append(System.lineSeparator());
+                writeResult(sb.toString(), outputFile, "interpreter output");
+                return;
+            }
+            ps.flush();
+            writeResult(buffer.toString(), outputFile, "interpreter output");
+        } else {
+            // No output file: stream directly to stdout so output appears in real time
+            try {
+                new IrInterpreter(funcs, ast, System.in, System.out).run();
+            } catch (Exception e) {
+                System.out.println("Runtime error: " + e.getMessage());
+            }
         }
-        ps.flush();
-        writeResult(buffer.toString(), outputFile, "interpreter output");
     }
 
     // ---------------- CFG MODE ----------------
