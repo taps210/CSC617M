@@ -61,6 +61,7 @@ world Arena {
 
     post {
         tick = tick + 1;
+        print("[post] tick =", tick, "(if Guard is gone, no [Guard] lines above)");
     }
 }
 

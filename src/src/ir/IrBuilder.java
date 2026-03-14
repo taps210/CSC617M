@@ -173,15 +173,17 @@ public final class IrBuilder {
         }
         if (s instanceof ForStmtNode n) {
             genForInit(n.init());
-            String LStart = nextLabel();
-            String LEnd = nextLabel();
-            loopLabels.push(new String[] { LEnd, LStart });
+            String LStart    = nextLabel();
+            String LContinue = nextLabel(); // continue jumps here, before the update
+            String LEnd      = nextLabel();
+            loopLabels.push(new String[] { LEnd, LContinue });
             emit(new Instr.LabelInstr(LStart));
             if (n.condition() != null) {
                 Operand cond = genExpr(n.condition());
                 emit(new Instr.IfZeroGotoInstr(cond, LEnd));
             }
             genStmt(n.body());
+            emit(new Instr.LabelInstr(LContinue));
             for (AssignStmtNode a : n.update()) genStmt(a);
             emit(new Instr.GotoInstr(LStart));
             emit(new Instr.LabelInstr(LEnd));
