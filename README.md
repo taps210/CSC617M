@@ -127,15 +127,3 @@ Graphical IDE with editor, compile, AST/parse tree tabs, IR output, and error di
 
 Windows: `gradlew.bat runIDE`
 
----
-
-## Scanner visualization (Streamlit)
-
-One-page dashboard: token list, large-file performance, and sample programs.
-
-```bash
-pip install -r viz/requirements.txt
-streamlit run viz/app.py
-```
-
-Requires the project to be built (`./gradlew build`) and large files to exist (`python3 scripts/generate_large_files.py` if needed).
