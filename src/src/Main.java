@@ -17,6 +17,7 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class Main {
@@ -83,8 +84,10 @@ public final class Main {
 
         var sb = new StringBuilder();
         try {
-            List<Token> tokens = scanner.tokenizeAll(true);
+            var errors = new ArrayList<LexicalErrorRecord>();
+            List<Token> tokens = scanner.tokenizeAll(errors);
             for (var t : tokens) sb.append(t).append(System.lineSeparator());
+            for (var e : errors) sb.append(e.line()).append(":").append(e.col()).append(" ").append(e.message()).append(System.lineSeparator());
         } catch (LexicalErrorRecord.ScanAbortedException e) {
             sb.append(e.getMessage()).append(System.lineSeparator());
         }
@@ -106,7 +109,7 @@ public final class Main {
         int count = 0;
         try {
             while (true) {
-                Token t = scanner.nextToken(false);
+                Token t = scanner.nextToken();
                 count++;
                 if (t.type() == TokenType.EOF) break;
             }
@@ -125,7 +128,7 @@ public final class Main {
         String srcText = Files.readString(Path.of(inputFile));
         var sb = new StringBuilder();
         try {
-            List<Token> tokens = new Scanner(srcText).tokenizeAll(false);
+            List<Token> tokens = new Scanner(srcText).tokenizeAll();
             new Parser(tokens, sb).parseProgram();
             sb.append("Parse OK").append(System.lineSeparator());
         } catch (LexicalErrorRecord.ScanAbortedException | ParseException e) {
@@ -143,91 +146,54 @@ public final class Main {
     // ---------------- SEMANTIC MODE ----------------
 
     private static void runSemantic(String inputFile, String outputFile) throws Exception {
-        String srcText = Files.readString(Path.of(inputFile));
-        var scanner = new Scanner(srcText);
-
-        List<Token> tokens;
+        var sb = new StringBuilder();
         try {
-            tokens = scanner.tokenizeAll(false);
-        } catch (LexicalErrorRecord.ScanAbortedException e) {
-            String msg = e.getMessage();
-            if (outputFile != null) Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-            else System.out.println(msg);
-            return;
+            List<Token> tokens = new Scanner(Files.readString(Path.of(inputFile))).tokenizeAll();
+            ProgramNode ast = new Parser(tokens, new StringBuilder()).parseProgramToAst();
+            List<SemanticError> errors = SemanticAnalyzer.analyze(ast);
+            if (errors.isEmpty()) {
+                sb.append("Semantic OK").append(System.lineSeparator());
+            } else {
+                for (var e : errors)
+                    sb.append(e.line()).append(":").append(e.col()).append(" ").append(e.message()).append(System.lineSeparator());
+            }
+        } catch (LexicalErrorRecord.ScanAbortedException | ParseException e) {
+            sb.append(e.getMessage()).append(System.lineSeparator());
         }
-
-        ProgramNode ast;
-        try {
-            var parser = new Parser(tokens, new StringBuilder());
-            ast = parser.parseProgramToAst();
-        } catch (ParseException e) {
-            String msg = e.getMessage();
-            if (outputFile != null) Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-            else System.out.println(msg);
-            return;
-        }
-
-        List<SemanticError> errors = new SemanticAnalyzer().analyze(ast);
-        String result;
-        if (errors.isEmpty()) {
-            result = "Semantic OK" + System.lineSeparator();
-        } else {
-            result = errors.stream()
-                    .map(e -> e.line() + ":" + e.col() + " " + e.message())
-                    .reduce("", (a, b) -> a + b + System.lineSeparator());
-        }
-
-        if (outputFile != null) {
-            Files.writeString(Path.of(outputFile), result);
-            System.out.println("Wrote semantic result to: " + outputFile);
-        } else {
-            System.out.print(result);
-        }
+        writeResult(sb.toString(), outputFile, "semantic result");
     }
 
     // ---------------- IR MODE ----------------
 
     private static void runIr(String inputFile, String outputFile) throws Exception {
-        ProgramNode ast = parseAndAnalyze(inputFile, outputFile);
-        if (ast == null) return;
-        List<FunctionIR> funcs;
-        try {
-            funcs = IrBuilder.buildProgram(ast);
-        } catch (Exception e) {
-            String msg = "IR build failed: " + e.getMessage();
-            if (outputFile != null) {
-                Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-                System.out.println("Wrote error to: " + outputFile);
-            } else {
-                System.err.println(msg);
-                e.printStackTrace(System.err);
+        var sb = new StringBuilder();
+        ProgramNode ast = parseAndAnalyze(inputFile, sb);
+        if (ast != null) {
+            try {
+                for (FunctionIR f : IrBuilder.buildProgram(ast))
+                    sb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
+            } catch (Exception e) {
+                sb.append("IR build failed: ").append(e.getMessage()).append(System.lineSeparator());
             }
-            return;
         }
-        StringBuilder sb = new StringBuilder();
-        for (FunctionIR f : funcs) {
-            sb.append(IrFormatter.formatFunctionIR(f)).append("\n");
-        }
-        String result = sb.toString();
-        if (outputFile != null) {
-            Files.writeString(Path.of(outputFile), result);
-            System.out.println("Wrote IR to: " + outputFile);
-        } else {
-            System.out.print(result);
-        }
+        writeResult(sb.toString(), outputFile, "IR");
     }
 
     // ---------------- RUN (INTERPRET) MODE ----------------
 
     private static void runRun(String inputFile, String outputFile) throws Exception {
-        ProgramNode ast = parseAndAnalyze(inputFile, null);
-        if (ast == null) return;
+        var sb = new StringBuilder();
+        ProgramNode ast = parseAndAnalyze(inputFile, sb);
+        if (ast == null) {
+            writeResult(sb.toString(), outputFile, "interpreter output");
+            return;
+        }
         List<FunctionIR> funcs;
         try {
             funcs = IrBuilder.buildProgram(ast);
         } catch (Exception e) {
-            System.err.println("IR build failed: " + e.getMessage());
-            e.printStackTrace(System.err);
+            sb.append("IR build failed: ").append(e.getMessage()).append(System.lineSeparator());
+            writeResult(sb.toString(), outputFile, "interpreter output");
             return;
         }
         var buffer = new ByteArrayOutputStream();
@@ -235,90 +201,65 @@ public final class Main {
         try {
             new IrInterpreter(funcs, ast, System.in, ps).run();
         } catch (Exception e) {
-            System.err.println("Runtime error: " + e.getMessage());
-            e.printStackTrace(System.err);
+            sb.append("Runtime error: ").append(e.getMessage()).append(System.lineSeparator());
+            writeResult(sb.toString(), outputFile, "interpreter output");
             return;
         }
         ps.flush();
-        String result = buffer.toString();
-        if (outputFile != null) {
-            Files.writeString(Path.of(outputFile), result);
-            System.out.println("Wrote interpreter output to: " + outputFile);
-        } else {
-            System.out.print(result);
-        }
+        writeResult(buffer.toString(), outputFile, "interpreter output");
     }
 
     // ---------------- CFG MODE ----------------
 
     private static void runCfg(String inputFile, String outputFile) throws Exception {
-        ProgramNode ast = parseAndAnalyze(inputFile, outputFile);
-        if (ast == null) return;
-        List<FunctionIR> funcs;
-        try {
-            funcs = IrBuilder.buildProgram(ast);
-        } catch (Exception e) {
-            String msg = "IR build failed: " + e.getMessage();
-            if (outputFile != null) {
-                Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-                System.out.println("Wrote error to: " + outputFile);
-            } else {
-                System.err.println(msg);
-                e.printStackTrace(System.err);
+        var sb = new StringBuilder();
+        ProgramNode ast = parseAndAnalyze(inputFile, sb);
+        if (ast != null) {
+            try {
+                for (FunctionIR f : IrBuilder.buildProgram(ast)) {
+                    sb.append("function ").append(f.name()).append(System.lineSeparator());
+                    List<BasicBlocks.Block> blocks = BasicBlocks.build(f.instructions());
+                    sb.append(IrFormatter.formatCFG(new ControlFlowGraph(blocks))).append(System.lineSeparator());
+                }
+            } catch (Exception e) {
+                sb.append("IR build failed: ").append(e.getMessage()).append(System.lineSeparator());
             }
-            return;
         }
-        StringBuilder sb = new StringBuilder();
-        for (FunctionIR f : funcs) {
-            sb.append("function ").append(f.name()).append("\n");
-            List<BasicBlocks.Block> blocks = BasicBlocks.build(f.instructions());
-            ControlFlowGraph cfg = new ControlFlowGraph(blocks);
-            sb.append(IrFormatter.formatCFG(cfg)).append("\n");
-        }
-        String result = sb.toString();
-        if (outputFile != null) {
-            Files.writeString(Path.of(outputFile), result);
-            System.out.println("Wrote CFG to: " + outputFile);
-        } else {
-            System.out.print(result);
-        }
+        writeResult(sb.toString(), outputFile, "CFG");
     }
 
-    /** Returns AST if scan/parse/semantic succeed; prints errors and returns null otherwise. */
-    private static ProgramNode parseAndAnalyze(String inputFile, String outputFile) throws Exception {
-        String srcText = Files.readString(Path.of(inputFile));
+    /** Returns AST if scan/parse/semantic succeed; appends errors to sb and returns null otherwise. */
+    private static ProgramNode parseAndAnalyze(String inputFile, StringBuilder sb) throws Exception {
         List<Token> tokens;
         try {
-            tokens = new Scanner(srcText).tokenizeAll(false);
+            tokens = new Scanner(Files.readString(Path.of(inputFile))).tokenizeAll();
         } catch (LexicalErrorRecord.ScanAbortedException e) {
-            String msg = e.getMessage();
-            if (outputFile != null) Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-            else System.out.println(msg);
+            sb.append(e.getMessage()).append(System.lineSeparator());
             return null;
         }
         ProgramNode ast;
         try {
-            var parser = new Parser(tokens, new StringBuilder());
-            ast = parser.parseProgramToAst();
+            ast = new Parser(tokens, new StringBuilder()).parseProgramToAst();
         } catch (ParseException e) {
-            String msg = e.getMessage();
-            if (outputFile != null) Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-            else System.out.println(msg);
+            sb.append(e.getMessage()).append(System.lineSeparator());
             return null;
         }
-        List<SemanticError> errors = new SemanticAnalyzer().analyze(ast);
+        List<SemanticError> errors = SemanticAnalyzer.analyze(ast);
         if (!errors.isEmpty()) {
-            String result = errors.stream()
-                    .map(e -> e.line() + ":" + e.col() + " " + e.message())
-                    .reduce("", (a, b) -> a + b + System.lineSeparator());
-            if (outputFile != null) {
-                Files.writeString(Path.of(outputFile), result);
-                System.out.println("Wrote errors to: " + outputFile);
-            } else {
-                System.out.print(result);
-            }
+            for (var e : errors)
+                sb.append(e.line()).append(":").append(e.col()).append(" ").append(e.message()).append(System.lineSeparator());
             return null;
         }
         return ast;
+    }
+
+    /** Writes result to outputFile if given, otherwise prints to stdout. */
+    private static void writeResult(String result, String outputFile, String label) throws Exception {
+        if (outputFile != null) {
+            Files.writeString(Path.of(outputFile), result);
+            System.out.println("Wrote " + label + " to: " + outputFile);
+        } else {
+            System.out.print(result);
+        }
     }
 }

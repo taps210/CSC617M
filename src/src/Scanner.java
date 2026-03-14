@@ -2,7 +2,10 @@ package src;
 
 import src.errors.LexicalErrorRecord;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public final class Scanner {
     private final String src;
@@ -64,19 +67,19 @@ public final class Scanner {
     }
 
     // Returns list of tokens including EOF
-    public List<Token> tokenizeAll(boolean printRecoveryMessages) {
-        return tokenizeAll(printRecoveryMessages, null);
+    public List<Token> tokenizeAll() {
+        return tokenizeAll(null);
     }
 
     /**
      * When errorCollector is non-null, recoverable lexical errors (&, |, unknown symbol)
      * are added to the list and scanning continues. Non-recoverable errors (e.g. unterminated string) still throw.
      */
-    public List<Token> tokenizeAll(boolean printRecoveryMessages, List<LexicalErrorRecord> errorCollector) {
+    public List<Token> tokenizeAll(List<LexicalErrorRecord> errorCollector) {
         var out = new ArrayList<Token>();
         try {
             while (true) {
-                var t = nextToken(printRecoveryMessages, errorCollector);
+                var t = nextToken(errorCollector);
                 out.add(t);
                 if (t.type() == TokenType.EOF) break;
             }
@@ -88,11 +91,11 @@ public final class Scanner {
     }
 
     // Core function that returns next token per call
-    public Token nextToken(boolean printRecoveryMessages) {
-        return nextToken(printRecoveryMessages, null);
+    public Token nextToken() {
+        return nextToken(null);
     }
 
-    private Token nextToken(boolean printRecoveryMessages, List<LexicalErrorRecord> errorCollector) {
+    private Token nextToken(List<LexicalErrorRecord> errorCollector) {
         skipWhitespaceAndComments();
 
         if (isAtEnd()) {
@@ -112,7 +115,7 @@ public final class Scanner {
 
         // Numbers: int or float; also handle "numbers with letters within"
         if (isDigit(c) || (c == '.' && isDigit(peekNext()))) {
-            return readNumberWithRecovery(printRecoveryMessages);
+            return readNumberWithRecovery(errorCollector);
         }
 
         // String literal
@@ -157,7 +160,7 @@ public final class Scanner {
                 if (match('|')) yield new Token(TokenType.OROR, "||", null, startLine, startCol);
                 if (errorCollector != null) {
                     errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"|\" (did you mean \"||\"?)"));
-                    yield nextToken(printRecoveryMessages, errorCollector);
+                    yield nextToken(errorCollector);
                 }
                 throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"|\" (did you mean \"||\"?)"));
             }
@@ -186,7 +189,7 @@ public final class Scanner {
                 advance();
                 if (errorCollector != null) {
                     errorCollector.add(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"%s\"".formatted(c)));
-                    yield nextToken(printRecoveryMessages, errorCollector);
+                    yield nextToken(errorCollector);
                 }
                 throw new LexicalErrorRecord.ScanAbortedException(new LexicalErrorRecord(startLine, startCol, "Unknown symbol \"%s\"".formatted(c)));
             }
@@ -195,7 +198,7 @@ public final class Scanner {
 
     // ---------- Core readers ----------
 
-    private Token readNumberWithRecovery(boolean printRecoveryMessages) {
+    private Token readNumberWithRecovery(List<LexicalErrorRecord> errorCollector) {
         int startLine = line;
         int startCol = col;
 
@@ -221,11 +224,9 @@ public final class Scanner {
         // If the next char is a letter/underscore, it's a lexical error ("numbers with letters within")
         if (isAlpha(peek()) || peek() == '_') {
             char bad = peek();
-            // Recover by consuming the bad character and continuing scanning (so remaining becomes an IDENT later)
-            if (printRecoveryMessages) {
-                System.out.println("Error found in line %d column %d".formatted(startLine, startCol));
-                System.out.println("Recovering: Replacing symbol \"%s\" at column %d with space"
-                        .formatted(bad, col));
+            if (errorCollector != null) {
+                errorCollector.add(new LexicalErrorRecord(startLine, startCol,
+                        "Recovering: Replacing symbol \"%s\" at column %d with space".formatted(bad, col)));
             }
             advance(); // skip the offending character
             // Return the number token we managed to read

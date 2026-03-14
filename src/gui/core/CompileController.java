@@ -81,7 +81,7 @@ public class CompileController {
         List<LexicalErrorRecord> lexErrors = new ArrayList<>();
         try {
             Scanner scanner = new Scanner(sourceText);
-            tokens = scanner.tokenizeAll(false, lexErrors);
+            tokens = scanner.tokenizeAll(lexErrors);
         } catch (LexicalErrorRecord.ScanAbortedException e) {
             // error already added to lexErrors by tokenizeAll before it rethrew
         }
@@ -108,7 +108,7 @@ public class CompileController {
                 ast = Optional.ofNullable(parser.getProgramNode());
                 parseTree = Optional.ofNullable(parser.getParseTreeRoot());
             } catch (ParseException e) {
-                allErrors.add(new CompileError(e.line, e.col, e.getMessage(), CompileError.Source.PARSER, CompileError.Severity.ERROR));
+                allErrors.add(new CompileError(e.line(), e.col(), e.getMessage(), CompileError.Source.PARSER, CompileError.Severity.ERROR));
                 trace.append("Parse error: ").append(e.getMessage()).append(System.lineSeparator());
             }
             long p1 = System.nanoTime();
@@ -119,7 +119,7 @@ public class CompileController {
 
             // Semantic analysis after successful parse when AST is present
             if (ast.isPresent()) {
-                List<SemanticError> semanticErrors = new SemanticAnalyzer().analyze(ast.get());
+                List<SemanticError> semanticErrors = SemanticAnalyzer.analyze(ast.get());
                 for (SemanticError se : semanticErrors) {
                     allErrors.add(se.toCompileError());
                 }
@@ -139,7 +139,7 @@ public class CompileController {
                 irFuncs = IrBuilder.buildProgram(ast.get());
                 StringBuilder irSb = new StringBuilder();
                 for (FunctionIR f : irFuncs) {
-                    irSb.append(IrFormatter.formatFunctionIR(f)).append("\n");
+                    irSb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
                     metrics.irInstrCount += f.instructions().size();
                 }
                 irText = Optional.of(irSb.toString());
@@ -188,7 +188,7 @@ public class CompileController {
             if (!w.isEmpty()) wordCount++;
         }
         metrics.wordCount = wordCount;
-        String[] lines = sourceText.split("\n", -1);
+        String[] lines = sourceText.split("\\r?\\n", -1);
         metrics.totalLines = lines.length;
         int blank = 0;
         int comment = 0;

@@ -366,7 +366,7 @@ class ParserCfgCoverageTest extends ParserTestBase {
             throw new AssertionError("Missing file: " + file.toAbsolutePath());
         }
         String src = Files.readString(file);
-        List<Token> tokens = new Scanner(src).tokenizeAll(false);
+        List<Token> tokens = new Scanner(src).tokenizeAll();
         StringBuilder trace = new StringBuilder();
         Parser parser = new Parser(tokens, trace);
         parser.parseProgram();

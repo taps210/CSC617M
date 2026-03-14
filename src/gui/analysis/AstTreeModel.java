@@ -92,10 +92,11 @@ public final class AstTreeModel {
         return r;
     }
     private static DefaultMutableTreeNode fromDeclarator(DeclaratorNode x) {
-        String lb = x.name();
-        if (!x.arrayDims().isEmpty()) lb += "[" + String.join("][", x.arrayDims().stream().map(String::valueOf).toList()) + "]";
-        if (x.init() != null) lb += " = ...";
-        DefaultMutableTreeNode r = n(lb, x.location()); addE(r, x.init()); return r;
+        StringBuilder lb = new StringBuilder(x.name());
+        if (!x.arrayDims().isEmpty())
+            lb.append("[").append(String.join("][", x.arrayDims().stream().map(String::valueOf).toList())).append("]");
+        if (x.init() != null) lb.append(" = ...");
+        DefaultMutableTreeNode r = n(lb.toString(), x.location()); addE(r, x.init()); return r;
     }
     private static DefaultMutableTreeNode fromParam(ParamNode x) {
         DefaultMutableTreeNode r = n(x.name(), x.location()); r.add(n("type: " + x.dataType().baseTypeName())); return r;

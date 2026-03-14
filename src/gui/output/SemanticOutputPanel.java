@@ -7,7 +7,6 @@ import src.gui.model.CompileError;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Read-only panel showing semantic analysis status and report.
@@ -35,7 +34,7 @@ public class SemanticOutputPanel extends JScrollPane implements CompileListener 
         }
         List<CompileError> semanticErrors = result.errors().stream()
                 .filter(e -> e.source() == CompileError.Source.SEMANTIC)
-                .collect(Collectors.toList());
+                .toList();
         int count = semanticErrors.size();
         boolean astPresent = result.ast().isPresent();
 
@@ -43,9 +42,10 @@ public class SemanticOutputPanel extends JScrollPane implements CompileListener 
         if (!astPresent) {
             sb.append("Semantic analysis not run (parse failed or no parse tree).");
         } else if (count > 0) {
-            sb.append("Semantic analysis found ").append(count).append(" error(s). See Errors tab for details.\n\n");
+            sb.append("Semantic analysis found ").append(count).append(" error(s). See Errors tab for details.")
+              .append(System.lineSeparator()).append(System.lineSeparator());
             for (CompileError e : semanticErrors) {
-                sb.append("  L").append(e.line()).append(": ").append(e.message()).append("\n");
+                sb.append("  L").append(e.line()).append(": ").append(e.message()).append(System.lineSeparator());
             }
         } else {
             sb.append("Semantic analysis: OK.");

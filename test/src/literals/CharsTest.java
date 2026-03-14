@@ -80,28 +80,28 @@ class CharsTest extends ScannerTestBase {
     @Test
     void emptyChar_throwsUnterminated() {
         assertThrowsLexical(
-                () -> new Scanner("''").tokenizeAll(false),
+                () -> new Scanner("''").tokenizeAll(),
                 "Unterminated character constant", 1, 1);
     }
 
     @Test
     void multiChar_ab_throwsOrMalformed() {
         assertThrowsLexical(
-                () -> new Scanner("'ab'").tokenizeAll(false),
+                () -> new Scanner("'ab'").tokenizeAll(),
                 "Unterminated character constant", 1, 1);
     }
 
     @Test
     void unclosedChar_alone() {
         assertThrowsLexical(
-                () -> new Scanner("'").tokenizeAll(false),
+                () -> new Scanner("'").tokenizeAll(),
                 "Unterminated character constant", 1, 1);
     }
 
     @Test
     void unclosedChar_noClosingQuote() {
         assertThrowsLexical(
-                () -> new Scanner("'a").tokenizeAll(false),
+                () -> new Scanner("'a").tokenizeAll(),
                 "Unterminated character constant", 1, 1);
     }
 }

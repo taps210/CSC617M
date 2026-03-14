@@ -6,7 +6,6 @@ import static src.Ast.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Converts a parse tree (root PROGRAM) to the AST (ProgramNode and all other AST types).
@@ -37,7 +36,7 @@ public final class ParseTreeToAst {
 
     private static List<UseNode> toUseList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.USE_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toUseStmt).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toUseStmt).toList();
     }
 
     private static UseNode toUseStmt(ParseTreeNode n) {
@@ -57,7 +56,7 @@ public final class ParseTreeToAst {
 
     private static List<TypeDeclNode> toTypeDeclList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.TYPE_DECL_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toTypeDecl).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toTypeDecl).toList();
     }
 
     private static TypeDeclNode toTypeDecl(ParseTreeNode n) {
@@ -83,7 +82,7 @@ public final class ParseTreeToAst {
 
     private static List<VarDeclNode> toFieldDeclList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.FIELD_DECL_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toVarDecl).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toVarDecl).toList();
     }
 
     private static AgentDeclNode toAgentDecl(ParseTreeNode n) {
@@ -97,7 +96,7 @@ public final class ParseTreeToAst {
 
     private static List<ZoneDeclNode> toZoneDeclList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.ZONE_DECL_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toZoneDecl).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toZoneDecl).toList();
     }
 
     private static ZoneDeclNode toZoneDecl(ParseTreeNode n) {
@@ -129,7 +128,7 @@ public final class ParseTreeToAst {
 
     private static List<ConstDeclNode> toConstDeclList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.CONST_DECL_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toConstDecl).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toConstDecl).toList();
     }
 
     private static ConstDeclNode toConstDecl(ParseTreeNode n) {
@@ -141,7 +140,7 @@ public final class ParseTreeToAst {
 
     private static List<VarDeclNode> toVarDeclList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.GLOBAL_VAR_DECL_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toVarDecl).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toVarDecl).toList();
     }
 
     private static VarDeclNode toVarDecl(ParseTreeNode n) {
@@ -177,7 +176,7 @@ public final class ParseTreeToAst {
 
     private static List<DeclaratorNode> toDeclaratorList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.DECLARATOR_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toDeclarator).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toDeclarator).toList();
     }
 
     private static DeclaratorNode toDeclarator(ParseTreeNode n) {
@@ -205,7 +204,7 @@ public final class ParseTreeToAst {
 
     private static List<FuncDeclNode> toFuncDeclList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.FUNC_DECL_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toFuncDecl).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toFuncDecl).toList();
     }
 
     private static FuncDeclNode toFuncDecl(ParseTreeNode n) {
@@ -226,7 +225,7 @@ public final class ParseTreeToAst {
 
     private static List<ParamNode> toParamList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.PARAM_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toParam).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toParam).toList();
     }
 
     private static ParamNode toParam(ParseTreeNode n) {
@@ -318,7 +317,7 @@ public final class ParseTreeToAst {
 
     private static List<ExprNode> toExprList(ParseTreeNode n) {
         if (n == null) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toExpr).filter(x -> x != null).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toExpr).filter(x -> x != null).toList();
     }
 
     private static ExprNode toExprOrPlaceholder(ParseTreeNode n) {
@@ -364,7 +363,7 @@ public final class ParseTreeToAst {
 
     private static List<AssignStmtNode> toAssignStmtList(ParseTreeNode n) {
         if (n == null || n.kind() != ParseTreeKind.ASSIGN_STMT_LIST) return List.of();
-        return n.children().stream().map(ParseTreeToAst::toAssignStmt).collect(Collectors.toList());
+        return n.children().stream().map(ParseTreeToAst::toAssignStmt).toList();
     }
 
     private static RepeatUntilStmtNode toRepeatUntilStmt(ParseTreeNode n) {

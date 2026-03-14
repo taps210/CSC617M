@@ -69,7 +69,7 @@ class InvalidIdentifiersTest extends ScannerTestBase {
     @Test
     void startsWithAt_throwsUnknownSymbol() {
         assertThrowsLexical(
-                () -> new Scanner("@variable").tokenizeAll(false),
+                () -> new Scanner("@variable").tokenizeAll(),
                 "Unknown symbol \"@\"", 1, 1);
     }
 

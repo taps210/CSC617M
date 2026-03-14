@@ -70,21 +70,21 @@ class StringsTest extends ScannerTestBase {
     @Test
     void unterminatedString_noClosingQuote() {
         assertThrowsLexical(
-                () -> new Scanner("\"hello").tokenizeAll(false),
+                () -> new Scanner("\"hello").tokenizeAll(),
                 "Unterminated string constant", 1, 1);
     }
 
     @Test
     void unterminatedString_newlineBeforeClosing() {
         assertThrowsLexical(
-                () -> new Scanner("\"hello\n").tokenizeAll(false),
+                () -> new Scanner("\"hello\n").tokenizeAll(),
                 "Unterminated string constant", 1, 1);
     }
 
     @Test
     void unterminatedString_backslashAtEof() {
         assertThrowsLexical(
-                () -> new Scanner("\"x\\").tokenizeAll(false),
+                () -> new Scanner("\"x\\").tokenizeAll(),
                 "Unterminated string constant", 1, 1);
     }
 }

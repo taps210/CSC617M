@@ -49,25 +49,27 @@ public final class IrFormatter {
     }
 
     public static String formatFunctionIR(FunctionIR f) {
+        String nl = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
-        sb.append("function ").append(f.name()).append("\n");
+        sb.append("function ").append(f.name()).append(nl);
         for (Instr i : f.instructions()) {
-            sb.append("  ").append(formatInstr(i)).append("\n");
+            sb.append("  ").append(formatInstr(i)).append(nl);
         }
         return sb.toString();
     }
 
     public static String formatCFG(ControlFlowGraph cfg) {
+        String nl = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < cfg.blockCount(); i++) {
             BasicBlocks.Block b = cfg.blocks().get(i);
-            sb.append("  block ").append(i).append(" (").append(b.label()).append("):\n");
+            sb.append("  block ").append(i).append(" (").append(b.label()).append("):").append(nl);
             for (Instr in : b.instructions()) {
-                sb.append("    ").append(formatInstr(in)).append("\n");
+                sb.append("    ").append(formatInstr(in)).append(nl);
             }
             Set<Integer> succ = cfg.successors(i);
             if (!succ.isEmpty()) {
-                sb.append("    -> ").append(succ.stream().sorted().map(j -> "B" + j).collect(Collectors.joining(", "))).append("\n");
+                sb.append("    -> ").append(succ.stream().sorted().map(j -> "B" + j).collect(Collectors.joining(", "))).append(nl);
             }
         }
         return sb.toString();

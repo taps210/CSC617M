@@ -18,7 +18,7 @@ public abstract class ParserTestBase {
 
     /** Tokenize source and run parser, return full trace string (including "Parse OK"). */
     protected String parseToTrace(String src) {
-        List<Token> tokens = new Scanner(src).tokenizeAll(false);
+        List<Token> tokens = new Scanner(src).tokenizeAll();
         StringBuilder out = new StringBuilder();
         Parser parser = new Parser(tokens, out);
         parser.parseProgram();
@@ -28,7 +28,7 @@ public abstract class ParserTestBase {
 
     /** Run parser on source; assert no exception. */
     protected void assertParseSuccess(String src) {
-        List<Token> tokens = new Scanner(src).tokenizeAll(false);
+        List<Token> tokens = new Scanner(src).tokenizeAll();
         Parser parser = new Parser(tokens, new StringBuilder());
         assertDoesNotThrow(parser::parseProgram);
     }
@@ -37,7 +37,7 @@ public abstract class ParserTestBase {
     protected void parseExpectError(String src, String messageSubstring, int expectedLine, int expectedCol) {
         assertThrowsParse(
                 () -> {
-                    List<Token> tokens = new Scanner(src).tokenizeAll(false);
+                    List<Token> tokens = new Scanner(src).tokenizeAll();
                     new Parser(tokens, new StringBuilder()).parseProgram();
                 },
                 messageSubstring,
@@ -51,8 +51,8 @@ public abstract class ParserTestBase {
         ParseException e = assertThrows(ParseException.class, executable);
         String msg = e.getMessage();
         assertTrue(msg.contains(messageSubstring), "Message should contain: " + messageSubstring + ", got: " + msg);
-        assertEquals(expectedLine, e.line, "Line");
-        assertEquals(expectedCol, e.col, "Column");
+        assertEquals(expectedLine, e.line(), "Line");
+        assertEquals(expectedCol, e.col(), "Column");
     }
 
     protected Path testsIn() {

@@ -2,8 +2,17 @@ package src.ir;
 
 import src.Ast;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Interprets three-address IR: executes instructions one by one using a store and program counter.
@@ -11,6 +20,17 @@ import java.util.*;
  * When ProgramNode is provided, ABM instructions (spawn, move, step, destroy, neighbors) use a minimal runtime.
  */
 public final class IrInterpreter {
+    // IR function-name conventions — must match IrBuilder's generated names
+    private static final String FN_ASSERT_FAIL   = "_assert_fail";
+    private static final String FN_RAND          = "rand";
+    private static final String OP_ARRAY_ACCESS  = "[]";
+    private static final String OP_MEMBER_ACCESS = ".";
+    private static final String KEY_SELF         = "self";
+    private static final String FN_PREFIX_UPDATE = "update_";
+    private static final String FN_PREFIX_WORLD  = "world_";
+    private static final String FN_SUFFIX_PRE    = "_pre";
+    private static final String FN_SUFFIX_POST   = "_post";
+
     private final Map<String, FunctionIR> functions = new HashMap<>();
     private final Ast.ProgramNode program;
     private final Map<String, Object> constStore = new HashMap<>();
@@ -158,152 +178,188 @@ public final class IrInterpreter {
         return map;
     }
 
-    /** Returns true if PC should advance by 1 (false for jumps/calls that set PC). */
+    /** Dispatches to the appropriate execute* handler. Returns true if PC should advance by 1. */
     private boolean execute(Instr instr) {
-        if (instr instanceof Instr.LabelInstr) return true;
-        if (instr instanceof Instr.AssignConst a) {
-            store.put(a.result(), a.value());
-            return true;
+        if (instr instanceof Instr.LabelInstr)          return true;
+        if (instr instanceof Instr.AssignConst a)       return executeAssignConst(a);
+        if (instr instanceof Instr.AssignCopy a)        return executeAssignCopy(a);
+        if (instr instanceof Instr.AssignBinary a)      return executeAssignBinary(a);
+        if (instr instanceof Instr.AssignUnary a)       return executeAssignUnary(a);
+        if (instr instanceof Instr.GotoInstr g)         return executeGoto(g);
+        if (instr instanceof Instr.IfGotoInstr ig)      return executeIfGoto(ig);
+        if (instr instanceof Instr.IfZeroGotoInstr iz)  return executeIfZeroGoto(iz);
+        if (instr instanceof Instr.ParamInstr p)        return executeParam(p);
+        if (instr instanceof Instr.CallInstr c)         return executeCall(c);
+        if (instr instanceof Instr.ReturnInstr r)       return executeReturn(r);
+        if (instr instanceof Instr.ReadInstr r)         return executeRead(r);
+        if (instr instanceof Instr.PrintInstr p)        return executePrint(p);
+        if (instr instanceof Instr.AllocArrayInstr a)   return executeAllocArray(a);
+        if (instr instanceof Instr.ArrayStoreInstr a)   return executeArrayStore(a);
+        if (instr instanceof Instr.SpawnInstr s)        return executeSpawn(s);
+        if (instr instanceof Instr.MoveInstr m)         return executeMove(m);
+        if (instr instanceof Instr.StepInstr)           return executeStep();
+        if (instr instanceof Instr.DestroyInstr d)      return executeDestroy(d);
+        if (instr instanceof Instr.NeighborsInstr n)    return executeNeighbors(n);
+        if (instr instanceof Instr.AbmCallInstr a)      return executeAbmCall(a);
+        return true;
+    }
+
+    private boolean executeAssignConst(Instr.AssignConst a) {
+        store.put(a.result(), a.value());
+        return true;
+    }
+
+    private boolean executeAssignCopy(Instr.AssignCopy a) {
+        store.put(a.result(), get(a.source()));
+        return true;
+    }
+
+    private boolean executeAssignBinary(Instr.AssignBinary a) {
+        Object left = get(a.left());
+        Object right = get(a.right());
+        Object resultVal;
+        if (OP_ARRAY_ACCESS.equals(a.op())) {
+            resultVal = listIndex(left, right);
+        } else if (OP_MEMBER_ACCESS.equals(a.op())
+                && a.right() instanceof Operand.VarOperand vr
+                && "length".equals(vr.name())
+                && left instanceof List<?> list) {
+            resultVal = list.size();
+        } else {
+            resultVal = evalBinary(left, a.op(), right);
         }
-        if (instr instanceof Instr.AssignCopy a) {
-            store.put(a.result(), get(a.source()));
-            return true;
-        }
-        if (instr instanceof Instr.AssignBinary a) {
-            Object left = get(a.left());
-            Object right = get(a.right());
-            Object resultVal;
-            if ("[]".equals(a.op())) {
-                resultVal = listIndex(left, right);
-            } else if (".".equals(a.op()) && a.right() instanceof Operand.VarOperand vr && "length".equals(vr.name()) && left instanceof List<?> list) {
-                resultVal = list.size();
-            } else {
-                resultVal = evalBinary(left, a.op(), right);
-            }
-            store.put(a.result(), resultVal);
-            return true;
-        }
-        if (instr instanceof Instr.AssignUnary a) {
-            Object op = get(a.operand());
-            store.put(a.result(), evalUnary(a.op(), op));
-            return true;
-        }
-        if (instr instanceof Instr.GotoInstr g) {
-            Integer target = labelMap.get(g.label());
+        store.put(a.result(), resultVal);
+        return true;
+    }
+
+    private boolean executeAssignUnary(Instr.AssignUnary a) {
+        store.put(a.result(), evalUnary(a.op(), get(a.operand())));
+        return true;
+    }
+
+    private boolean executeGoto(Instr.GotoInstr g) {
+        Integer target = labelMap.get(g.label());
+        if (target != null) pc = target;
+        return false;
+    }
+
+    private boolean executeIfGoto(Instr.IfGotoInstr ig) {
+        if (truthy(get(ig.cond()))) {
+            Integer target = labelMap.get(ig.label());
             if (target != null) pc = target;
             return false;
         }
-        if (instr instanceof Instr.IfGotoInstr ig) {
-            Object cond = get(ig.cond());
-            if (truthy(cond)) {
-                Integer target = labelMap.get(ig.label());
-                if (target != null) pc = target;
-                return false;
+        return true;
+    }
+
+    private boolean executeIfZeroGoto(Instr.IfZeroGotoInstr iz) {
+        if (!truthy(get(iz.cond()))) {
+            Integer target = labelMap.get(iz.label());
+            if (target != null) pc = target;
+            return false;
+        }
+        return true;
+    }
+
+    private boolean executeParam(Instr.ParamInstr p) {
+        paramList.add(get(p.arg()));
+        return true;
+    }
+
+    private boolean executeCall(Instr.CallInstr c) {
+        FunctionIR callee = functions.get(c.funcName());
+        List<Object> args = new ArrayList<>(paramList);
+        paramList.clear();
+        if (callee != null) {
+            runFunction(callee, args);
+            Object ret = returnValue;
+            returnValue = null;
+            if (c.result() != null && ret != null) store.put(c.result(), ret);
+        } else if (FN_ASSERT_FAIL.equals(c.funcName())) {
+            throw new RuntimeException("Assertion failed");
+        }
+        return true;
+    }
+
+    private boolean executeReturn(Instr.ReturnInstr r) {
+        returnValue = r.value() != null ? get(r.value()) : null;
+        return true;
+    }
+
+    private boolean executeRead(Instr.ReadInstr r) {
+        String name = lvalueName(r.lvalue());
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
+            String line = reader.readLine();
+            if (line != null) store.put(name, parseInput(line));
+        } catch (IOException e) {
+            throw new RuntimeException("Read failed", e);
+        }
+        return true;
+    }
+
+    private boolean executePrint(Instr.PrintInstr p) {
+        List<Object> vals = new ArrayList<>();
+        for (Operand a : p.args()) vals.add(get(a));
+        out.println(vals.stream().map(Objects::toString).reduce((a, b) -> a + " " + b).orElse(""));
+        return true;
+    }
+
+    private boolean executeAllocArray(Instr.AllocArrayInstr a) {
+        store.put(a.result(), new ArrayList<>(Collections.nCopies(a.size(), a.defaultVal())));
+        return true;
+    }
+
+    private boolean executeArrayStore(Instr.ArrayStoreInstr a) {
+        Object arrObj = store.get(a.arrayName());
+        if (arrObj instanceof List<?>) {
+            @SuppressWarnings("unchecked") List<Object> arr = (List<Object>) arrObj;
+            int idx = toInt(get(a.index()));
+            if (idx >= 0 && idx < arr.size()) arr.set(idx, get(a.value()));
+        }
+        return true;
+    }
+
+    private boolean executeSpawn(Instr.SpawnInstr s) {
+        if (program != null) abmSpawn(s); else paramList.clear();
+        return true;
+    }
+
+    private boolean executeMove(Instr.MoveInstr m) {
+        if (program != null) abmMove(m);
+        return true;
+    }
+
+    private boolean executeStep() {
+        if (program != null) abmStep();
+        return true;
+    }
+
+    private boolean executeDestroy(Instr.DestroyInstr d) {
+        if (program != null) abmDestroy(d);
+        return true;
+    }
+
+    private boolean executeNeighbors(Instr.NeighborsInstr n) {
+        if (program != null) abmNeighbors(n);
+        else if (n.result() != null) store.put(n.result(), List.of());
+        return true;
+    }
+
+    private boolean executeAbmCall(Instr.AbmCallInstr a) {
+        if (FN_RAND.equals(a.name())) {
+            int lo, hi;
+            if (a.args().isEmpty()) {
+                lo = 0; hi = Integer.MAX_VALUE;
+            } else if (a.args().size() == 1) {
+                lo = 0; hi = toInt(get(a.args().get(0)));
+            } else {
+                lo = toInt(get(a.args().get(0)));
+                hi = toInt(get(a.args().get(1)));
             }
-            return true;
-        }
-        if (instr instanceof Instr.IfZeroGotoInstr iz) {
-            Object cond = get(iz.cond());
-            if (!truthy(cond)) {
-                Integer target = labelMap.get(iz.label());
-                if (target != null) pc = target;
-                return false;
-            }
-            return true;
-        }
-        if (instr instanceof Instr.ParamInstr p) {
-            paramList.add(get(p.arg()));
-            return true;
-        }
-        if (instr instanceof Instr.CallInstr c) {
-            FunctionIR callee = functions.get(c.funcName());
-            List<Object> args = new ArrayList<>(paramList);
-            paramList.clear();
-            if (callee != null) {
-                runFunction(callee, args);
-                Object ret = returnValue;
-                returnValue = null;
-                if (c.result() != null && ret != null) store.put(c.result(), ret);
-            } else if ("_assert_fail".equals(c.funcName())) {
-                throw new RuntimeException("Assertion failed");
-            }
-            return true;
-        }
-        if (instr instanceof Instr.ReturnInstr r) {
-            returnValue = r.value() != null ? get(r.value()) : null;
-            return true;
-        }
-        if (instr instanceof Instr.ReadInstr r) {
-            String name = lvalueName(r.lvalue());
-            try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-                String line = reader.readLine();
-                if (line != null) {
-                    Object val = parseInput(line);
-                    store.put(name, val);
-                }
-            } catch (IOException e) {
-                throw new RuntimeException("Read failed", e);
-            }
-            return true;
-        }
-        if (instr instanceof Instr.PrintInstr p) {
-            List<Object> vals = new ArrayList<>();
-            for (Operand a : p.args()) vals.add(get(a));
-            out.println(vals.stream().map(Objects::toString).reduce((a, b) -> a + " " + b).orElse(""));
-            return true;
-        }
-        if (instr instanceof Instr.AllocArrayInstr a) {
-            List<Object> arr = new ArrayList<>(java.util.Collections.nCopies(a.size(), a.defaultVal()));
-            store.put(a.result(), arr);
-            return true;
-        }
-        if (instr instanceof Instr.ArrayStoreInstr a) {
-            Object arrObj = store.get(a.arrayName());
-            if (arrObj instanceof List<?>) {
-                @SuppressWarnings("unchecked") List<Object> arr = (List<Object>) arrObj;
-                int idx = toInt(get(a.index()));
-                if (idx >= 0 && idx < arr.size()) arr.set(idx, get(a.value()));
-            }
-            return true;
-        }
-        if (instr instanceof Instr.SpawnInstr s) {
-            if (program != null) abmSpawn(s); else paramList.clear();
-            return true;
-        }
-        if (instr instanceof Instr.MoveInstr m) {
-            if (program != null) abmMove(m);
-            return true;
-        }
-        if (instr instanceof Instr.StepInstr) {
-            if (program != null) abmStep();
-            return true;
-        }
-        if (instr instanceof Instr.DestroyInstr d) {
-            if (program != null) abmDestroy(d);
-            return true;
-        }
-        if (instr instanceof Instr.NeighborsInstr n) {
-            if (program != null) abmNeighbors(n); else if (n.result() != null) store.put(n.result(), List.of());
-            return true;
-        }
-        if (instr instanceof Instr.AbmCallInstr a) {
-            if ("rand".equals(a.name())) {
-                int lo, hi;
-                if (a.args().size() == 0) {
-                    lo = 0; hi = Integer.MAX_VALUE;
-                } else if (a.args().size() == 1) {
-                    lo = 0; hi = toInt(get(a.args().get(0)));
-                } else {
-                    lo = toInt(get(a.args().get(0)));
-                    hi = toInt(get(a.args().get(1)));
-                }
-                int v = lo + (int) (Math.random() * ((long)(hi - lo) + 1));
-                if (a.result() != null) store.put(a.result(), v);
-            } else if (a.result() != null) {
-                store.put(a.result(), 0);
-            }
-            return true;
+            int v = lo + (int) (Math.random() * ((long)(hi - lo) + 1));
+            if (a.result() != null) store.put(a.result(), v);
+        } else if (a.result() != null) {
+            store.put(a.result(), 0);
         }
         return true;
     }
@@ -332,23 +388,23 @@ public final class IrInterpreter {
     }
 
     private static Object evalBinary(Object left, String op, Object right) {
-        switch (op) {
-            case "+": return add(left, right);
-            case "-": return sub(left, right);
-            case "*": return mul(left, right);
-            case "/": return div(left, right);
-            case "%": return mod(left, right);
-            case "==": return eq(left, right);
-            case "!=": return !eq(left, right);
-            case "<": return toInt(left) < toInt(right);
-            case "<=": return toInt(left) <= toInt(right);
-            case ">": return toInt(left) > toInt(right);
-            case ">=": return toInt(left) >= toInt(right);
-            case "&&": return truthy(left) && truthy(right);
-            case "||": return truthy(left) || truthy(right);
-            case ".": return left instanceof Map<?, ?> m && right != null ? m.get(right.toString()) : null;
-            default: return 0;
-        }
+        return switch (op) {
+            case "+"  -> add(left, right);
+            case "-"  -> sub(left, right);
+            case "*"  -> mul(left, right);
+            case "/"  -> div(left, right);
+            case "%"  -> mod(left, right);
+            case "==" -> eq(left, right);
+            case "!=" -> !eq(left, right);
+            case "<"  -> toInt(left) < toInt(right);
+            case "<=" -> toInt(left) <= toInt(right);
+            case ">"  -> toInt(left) > toInt(right);
+            case ">=" -> toInt(left) >= toInt(right);
+            case "&&" -> truthy(left) && truthy(right);
+            case "||" -> truthy(left) || truthy(right);
+            case "."  -> left instanceof Map<?, ?> m && right != null ? m.get(right.toString()) : null;
+            default   -> 0;
+        };
     }
 
     private static Object evalUnary(String op, Object operand) {
@@ -430,15 +486,15 @@ public final class IrInterpreter {
 
     private void abmStep() {
         if (worldName == null) return;
-        FunctionIR pre = functions.get("world_" + worldName + "_pre");
-        FunctionIR post = functions.get("world_" + worldName + "_post");
+        FunctionIR pre  = functions.get(FN_PREFIX_WORLD + worldName + FN_SUFFIX_PRE);
+        FunctionIR post = functions.get(FN_PREFIX_WORLD + worldName + FN_SUFFIX_POST);
         if (pre != null) runFunction(pre, List.of(), worldStore);
         List<AgentHandle> toUpdate = new ArrayList<>(agents);
         for (AgentHandle agent : toUpdate) {
             if (!agents.contains(agent)) continue; // was destroyed
-            FunctionIR update = functions.get("update_" + agent.typeName);
+            FunctionIR update = functions.get(FN_PREFIX_UPDATE + agent.typeName);
             if (update != null) {
-                agent.store.put("self", agent);
+                agent.store.put(KEY_SELF, agent);
                 currentAgent = agent;
                 runFunction(update, List.of(), agent.store);
             }
@@ -447,11 +503,10 @@ public final class IrInterpreter {
     }
 
     private void abmSpawn(Instr.SpawnInstr s) {
-        String agentType = s.agentType();
         List<Object> args = new ArrayList<>();
         for (Operand o : s.args()) args.add(get(o));
         paramList.clear();
-        Ast.AgentDeclNode decl = findAgentDecl(agentType);
+        Ast.AgentDeclNode decl = findAgentDecl(s.agentType());
         if (decl == null) return;
         Map<String, Object> agentStore = new HashMap<>();
         List<String> fieldNames = new ArrayList<>();
@@ -465,17 +520,14 @@ public final class IrInterpreter {
         for (int i = 0; i < args.size() && i < fieldNames.size(); i++) {
             agentStore.put(fieldNames.get(i), args.get(i));
         }
-        AgentHandle agent = new AgentHandle(nextAgentId++, agentType, agentStore);
-        agents.add(agent);
+        agents.add(new AgentHandle(nextAgentId++, s.agentType(), agentStore));
     }
 
     private void abmMove(Instr.MoveInstr m) {
         if (currentAgent == null) return;
-        Object x = get(m.x());
-        Object y = get(m.y());
+        currentAgent.store.put("x", get(m.x()));
+        currentAgent.store.put("y", get(m.y()));
         Object z = m.z() != null ? get(m.z()) : null;
-        currentAgent.store.put("x", x);
-        currentAgent.store.put("y", y);
         if (z != null) currentAgent.store.put("z", z);
     }
 
@@ -501,10 +553,8 @@ public final class IrInterpreter {
         List<AgentHandle> near = new ArrayList<>();
         for (AgentHandle a : agents) {
             if (a == self) continue;
-            int ax = toInt(a.store.get("x"));
-            int ay = toInt(a.store.get("y"));
-            int dx = Math.abs(ax - sx);
-            int dy = Math.abs(ay - sy);
+            int dx = Math.abs(toInt(a.store.get("x")) - sx);
+            int dy = Math.abs(toInt(a.store.get("y")) - sy);
             if (dx <= radius && dy <= radius) near.add(a);
         }
         if (n.result() != null) store.put(n.result(), near);

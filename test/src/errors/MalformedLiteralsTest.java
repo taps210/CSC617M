@@ -28,7 +28,7 @@ class MalformedLiteralsTest extends ScannerTestBase {
     @Test
     void multiCharInSingleQuotes_ab_throws() {
         assertThrowsLexical(
-                () -> new Scanner("'ab'").tokenizeAll(false),
+                () -> new Scanner("'ab'").tokenizeAll(),
                 "Unterminated character constant", 1, 1);
     }
 

@@ -16,7 +16,11 @@ public class SemanticAnalyzer {
     private int agentDepth = 0;
     private DataTypeNode currentReturnType = null; // null = void (main or no function)
 
-    public List<SemanticError> analyze(ProgramNode program) {
+    public static List<SemanticError> analyze(ProgramNode program) {
+        return new SemanticAnalyzer().analyzeInternal(program);
+    }
+
+    private List<SemanticError> analyzeInternal(ProgramNode program) {
         errors.clear();
         table.pushScope();
         defineBuiltinTypes();

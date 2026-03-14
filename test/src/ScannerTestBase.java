@@ -17,7 +17,7 @@ public abstract class ScannerTestBase {
     protected static final Path TESTS_OUT = PROJECT_ROOT.resolve("tests").resolve("outputs");
 
     protected List<Token> tokenize(String src) {
-        return new Scanner(src).tokenizeAll(false);
+        return new Scanner(src).tokenizeAll();
     }
 
     protected void assertTokenTypes(List<Token> tokens, TokenType... expected) {
@@ -48,7 +48,7 @@ public abstract class ScannerTestBase {
     }
 
     protected String tokenDumpFromFile(Path input) throws Exception {
-        List<Token> tokens = new Scanner(Files.readString(input)).tokenizeAll(false);
+        List<Token> tokens = new Scanner(Files.readString(input)).tokenizeAll();
         StringBuilder sb = new StringBuilder();
         for (Token t : tokens) {
             sb.append(t.toString()).append("\n");

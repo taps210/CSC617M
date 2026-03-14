@@ -2,7 +2,11 @@ package src.semantic;
 
 import static src.Ast.*;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Scope stack for name resolution. Supports define(name, kind, type) and resolve(name).

@@ -13,6 +13,17 @@ import java.util.Map;
  * Builds three-address IR from the AST. One function (or main) at a time.
  */
 public final class IrBuilder {
+    // IR function-name conventions — must match IrInterpreter's constants
+    private static final String FN_ASSERT_FAIL   = "_assert_fail";
+    private static final String FN_NEIGHBORS     = "neighbors";
+    private static final String OP_ARRAY_ACCESS  = "[]";
+    private static final String KEY_SELF         = "self";
+    private static final String KEY_SELF_PREFIX  = KEY_SELF + ".";
+    private static final String FN_PREFIX_UPDATE = "update_";
+    private static final String FN_PREFIX_WORLD  = "world_";
+    private static final String FN_SUFFIX_PRE    = "_pre";
+    private static final String FN_SUFFIX_POST   = "_post";
+
     private final List<Instr> instructions = new ArrayList<>();
     private int tempCounter = 0;
     private int labelCounter = 0;
@@ -44,20 +55,23 @@ public final class IrBuilder {
         }
         for (var td : program.typeDecls()) {
             if (td instanceof AgentDeclNode a && a.updateBlock() != null) {
+                String updateName = FN_PREFIX_UPDATE + a.name();
                 IrBuilder b = new IrBuilder(constValues);
-                b.buildFunctionBody("update_" + a.name(), a.updateBlock());
-                out.add(new FunctionIR("update_" + a.name(), List.of(), new ArrayList<>(b.instructions)));
+                b.buildFunctionBody(updateName, a.updateBlock());
+                out.add(new FunctionIR(updateName, List.of(), new ArrayList<>(b.instructions)));
             }
             if (td instanceof WorldDeclNode w) {
                 if (w.preBlock() != null) {
+                    String preName = FN_PREFIX_WORLD + w.name() + FN_SUFFIX_PRE;
                     IrBuilder b = new IrBuilder(constValues);
-                    b.buildFunctionBody("world_" + w.name() + "_pre", w.preBlock());
-                    out.add(new FunctionIR("world_" + w.name() + "_pre", List.of(), new ArrayList<>(b.instructions)));
+                    b.buildFunctionBody(preName, w.preBlock());
+                    out.add(new FunctionIR(preName, List.of(), new ArrayList<>(b.instructions)));
                 }
                 if (w.postBlock() != null) {
+                    String postName = FN_PREFIX_WORLD + w.name() + FN_SUFFIX_POST;
                     IrBuilder b = new IrBuilder(constValues);
-                    b.buildFunctionBody("world_" + w.name() + "_post", w.postBlock());
-                    out.add(new FunctionIR("world_" + w.name() + "_post", List.of(), new ArrayList<>(b.instructions)));
+                    b.buildFunctionBody(postName, w.postBlock());
+                    out.add(new FunctionIR(postName, List.of(), new ArrayList<>(b.instructions)));
                 }
             }
         }
@@ -187,7 +201,7 @@ public final class IrBuilder {
             Operand cond = genExpr(n.condition());
             String L = nextLabel();
             emit(new Instr.IfGotoInstr(cond, L));
-            emit(new Instr.CallInstr("_assert_fail", null)); // placeholder
+            emit(new Instr.CallInstr(FN_ASSERT_FAIL, null));
             emit(new Instr.LabelInstr(L));
             return;
         }
@@ -229,7 +243,7 @@ public final class IrBuilder {
         if (s instanceof AbmCallStmtNode an) {
             List<Operand> args = new ArrayList<>();
             for (ExprNode a : an.args()) args.add(genExpr(a));
-            if ("neighbors".equals(an.name())) {
+            if (FN_NEIGHBORS.equals(an.name())) {
                 emit(new Instr.NeighborsInstr(args, null));
             } else {
                 emit(new Instr.AbmCallInstr(an.name(), args, null));
@@ -270,7 +284,7 @@ public final class IrBuilder {
     private String lvalueName(ExprNode lvalue) {
         if (lvalue instanceof IdentExprNode n) return n.name();
         if (lvalue instanceof LvalueExprNode n) return n.baseName();
-        if (lvalue instanceof SelfFieldExprNode n) return "self." + n.fieldName();
+        if (lvalue instanceof SelfFieldExprNode n) return KEY_SELF_PREFIX + n.fieldName();
         return "?";
     }
 
@@ -285,10 +299,10 @@ public final class IrBuilder {
             return Operand.var(n.name());
         }
         if (e instanceof SelfExprNode) {
-            return Operand.var("self");
+            return Operand.var(KEY_SELF);
         }
         if (e instanceof SelfFieldExprNode n) {
-            return Operand.var("self." + n.fieldName());
+            return Operand.var(KEY_SELF_PREFIX + n.fieldName());
         }
         if (e instanceof NullExprNode) {
             String t = nextTemp();
@@ -336,7 +350,7 @@ public final class IrBuilder {
             List<Operand> args = new ArrayList<>();
             for (ExprNode a : n.args()) args.add(genExpr(a));
             String result = nextTemp();
-            if ("neighbors".equals(n.name())) {
+            if (FN_NEIGHBORS.equals(n.name())) {
                 emit(new Instr.NeighborsInstr(args, result));
             } else {
                 emit(new Instr.AbmCallInstr(n.name(), args, result));

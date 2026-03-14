@@ -59,7 +59,7 @@ public class HerdSyntaxHighlighter implements DocumentListener {
             List<Token> tokens;
             try {
                 Scanner scanner = new Scanner(text);
-                tokens = scanner.tokenizeAll(false);
+                tokens = scanner.tokenizeAll();
             } catch (Exception e) {
                 // On lexical error (e.g. unterminated string), skip coloring rest
                 return;
