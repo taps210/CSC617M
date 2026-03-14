@@ -77,8 +77,8 @@ Same as `--ir`, then builds basic blocks and prints the CFG with successor sets.
 Full pipeline: scan → parse → semantic → IR → execute with the interpreter.
 ```bash
 ./gradlew run --args="--run <inputFile>"
+./gradlew run --args="--run --out <outputFile> <inputFile>"
 ```
-`--out` is not supported for `--run`; output goes to stdout.
 
 ### Benchmark
 Scan-only timing benchmark (no `--out`).

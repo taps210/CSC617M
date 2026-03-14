@@ -1,6 +1,7 @@
 package src;
 
 import org.junit.jupiter.api.Test;
+import src.errors.LexicalErrorRecord;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

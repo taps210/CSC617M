@@ -136,7 +136,7 @@ public class CompileController {
         if (ast.isPresent() && !hasErrors) {
             long ir0 = System.nanoTime();
             try {
-                irFuncs = new IrBuilder().buildProgram(ast.get());
+                irFuncs = IrBuilder.buildProgram(ast.get());
                 StringBuilder irSb = new StringBuilder();
                 for (FunctionIR f : irFuncs) {
                     irSb.append(IrFormatter.formatFunctionIR(f)).append("\n");

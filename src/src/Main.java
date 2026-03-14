@@ -12,6 +12,8 @@ import src.ir.IrFormatter;
 import src.ir.IrInterpreter;
 import src.semantic.SemanticAnalyzer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,6 +34,7 @@ public final class Main {
                         java -cp build/classes/java/main src.Main --ir <inputFile>
                         java -cp build/classes/java/main src.Main --ir --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --run <inputFile>
+                        java -cp build/classes/java/main src.Main --run --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --cfg <inputFile>
                         java -cp build/classes/java/main src.Main --cfg --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --bench <inputFile>
@@ -43,8 +46,8 @@ public final class Main {
         int i = 1;
         String outFile = null;
         if (i < args.length && args[i].equals("--out")) {
-            if (mode.equals("--bench") || mode.equals("--run")) {
-                System.out.println("--bench and --run do not use --out.");
+            if (mode.equals("--bench")) {
+                System.out.println("--bench does not use --out.");
                 return;
             }
             i++;
@@ -65,7 +68,7 @@ public final class Main {
             case "--parse" -> runParse(inFile, outFile);
             case "--semantic" -> runSemantic(inFile, outFile);
             case "--ir" -> runIr(inFile, outFile);
-            case "--run" -> runRun(inFile);
+            case "--run" -> runRun(inFile, outFile);
             case "--cfg" -> runCfg(inFile, outFile);
             case "--bench" -> runBench(inFile);
             default -> System.out.println("Unknown option: " + mode);
@@ -120,36 +123,20 @@ public final class Main {
 
     private static void runParse(String inputFile, String outputFile) throws Exception {
         String srcText = Files.readString(Path.of(inputFile));
-        var scanner = new Scanner(srcText);
-
-        Appendable out = outputFile != null ? new StringBuilder() : System.out;
+        var sb = new StringBuilder();
         try {
-            List<Token> tokens = scanner.tokenizeAll(false);
-            var parser = new Parser(tokens, out);
-            parser.parseProgram();
-            if (outputFile != null) {
-                ((StringBuilder) out).append("Parse OK").append(System.lineSeparator());
-                Files.writeString(Path.of(outputFile), out.toString());
-                System.out.println("Wrote parse dump to: " + outputFile);
-            } else {
-                System.out.println("Parse OK");
-            }
-        } catch (LexicalErrorRecord.ScanAbortedException e) {
-            String msg = e.getMessage();
-            if (outputFile != null) {
-                Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-                System.out.println("Wrote parse dump to: " + outputFile);
-            } else {
-                System.out.println(msg);
-            }
-        } catch (ParseException e) {
-            String msg = e.getMessage();
-            if (outputFile != null) {
-                Files.writeString(Path.of(outputFile), msg + System.lineSeparator());
-                System.out.println("Wrote parse dump to: " + outputFile);
-            } else {
-                System.out.println(msg);
-            }
+            List<Token> tokens = new Scanner(srcText).tokenizeAll(false);
+            new Parser(tokens, sb).parseProgram();
+            sb.append("Parse OK").append(System.lineSeparator());
+        } catch (LexicalErrorRecord.ScanAbortedException | ParseException e) {
+            sb.append(e.getMessage()).append(System.lineSeparator());
+        }
+        String result = sb.toString();
+        if (outputFile != null) {
+            Files.writeString(Path.of(outputFile), result);
+            System.out.println("Wrote parse dump to: " + outputFile);
+        } else {
+            System.out.print(result);
         }
     }
 
@@ -232,7 +219,7 @@ public final class Main {
 
     // ---------------- RUN (INTERPRET) MODE ----------------
 
-    private static void runRun(String inputFile) throws Exception {
+    private static void runRun(String inputFile, String outputFile) throws Exception {
         ProgramNode ast = parseAndAnalyze(inputFile, null);
         if (ast == null) return;
         List<FunctionIR> funcs;
@@ -243,11 +230,22 @@ public final class Main {
             e.printStackTrace(System.err);
             return;
         }
+        var buffer = new ByteArrayOutputStream();
+        var ps = new PrintStream(buffer);
         try {
-            new IrInterpreter(funcs, ast, System.in, System.out).run();
+            new IrInterpreter(funcs, ast, System.in, ps).run();
         } catch (Exception e) {
             System.err.println("Runtime error: " + e.getMessage());
             e.printStackTrace(System.err);
+            return;
+        }
+        ps.flush();
+        String result = buffer.toString();
+        if (outputFile != null) {
+            Files.writeString(Path.of(outputFile), result);
+            System.out.println("Wrote interpreter output to: " + outputFile);
+        } else {
+            System.out.print(result);
         }
     }
 
