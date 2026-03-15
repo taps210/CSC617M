@@ -1,0 +1,54 @@
+// Test: pass neighbors()[i] as the self arg to a second neighbors() call
+//
+// Setup:
+//   - Scout at (0,0): finds Relay(1,0) via neighbors(self,2), then calls neighbors(relay,2)
+//   - Relay at (1,0): within radius 2 of Scout
+//   - Target at (3,0): within radius 2 of Relay, but NOT within radius 2 of Scout
+//
+// From Relay pos (1,0) with radius 2: Scout(0,0) and Target(3,0) are both in range
+// So fromRelay.length should be 2
+
+agent Scout {
+    int x, y;
+    Scout nearby[];
+    Scout fromRelay[];
+    update {
+        nearby = neighbors(self, 2);
+        print("[Scout] nearby.length (expect 1 = Relay):", nearby.length);
+        if (nearby.length > 0) {
+            fromRelay = neighbors(nearby[0], 2);
+            print("[Scout] fromRelay.length (from nearby[0] pos, expect 2):", fromRelay.length);
+        }
+    }
+}
+
+agent Relay {
+    int x, y;
+    update {}
+}
+
+agent Target {
+    int x, y;
+    update {}
+}
+
+world TestWorld {
+    int width = 20;
+    int height = 20;
+    bool spawned = false;
+    pre {
+        if (!spawned) {
+            spawn Scout(0, 0);
+            spawn Relay(1, 0);
+            spawn Target(3, 0);
+            spawned = true;
+        }
+    }
+    post {}
+}
+
+void main() {
+    print("=== neighbors chaining test ===");
+    step();
+    print("=== done ===");
+}

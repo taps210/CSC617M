@@ -3,6 +3,7 @@ package src.gui.editor;
 import javax.swing.text.Highlighter;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 
 /**
  * Draws a red wavy underline beneath highlighted text (e.g. for errors).
@@ -20,10 +21,13 @@ public class SquigglePainter implements Highlighter.HighlightPainter {
     @Override
     public void paint(Graphics g, int p0, int p1, Shape bounds, JTextComponent c) {
         try {
-            Rectangle r = bounds.getBounds();
-            int y = r.y + r.height - 1;
-            int x1 = r.x;
-            int x2 = r.x + r.width;
+            Rectangle2D r0 = c.modelToView2D(p0);
+            Rectangle2D r1 = c.modelToView2D(p1);
+            if (r0 == null) return;
+            int y = (int)(r0.getY() + r0.getHeight()) - 1;
+            int x1 = (int) r0.getX();
+            int x2 = (r1 != null && (int) r1.getY() == (int) r0.getY()) ? (int) r1.getX() : bounds.getBounds().x + bounds.getBounds().width;
+            if (x2 <= x1) x2 = x1 + 4;
             Graphics2D g2 = (Graphics2D) g;
             g2.setColor(color);
             g2.setStroke(new BasicStroke(1.5f));
