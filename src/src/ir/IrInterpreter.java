@@ -202,6 +202,7 @@ public final class IrInterpreter {
         if (instr instanceof Instr.DestroyInstr d)      return executeDestroy(d);
         if (instr instanceof Instr.NeighborsInstr n)    return executeNeighbors(n);
         if (instr instanceof Instr.AbmCallInstr a)      return executeAbmCall(a);
+        if (instr instanceof Instr.ZoneEnterInstr z)    return executeZoneEnter(z);
         return true;
     }
 
@@ -226,6 +227,10 @@ public final class IrInterpreter {
                 && "length".equals(vr.name())
                 && left instanceof List<?> list) {
             resultVal = list.size();
+        } else if (OP_MEMBER_ACCESS.equals(a.op())
+                && a.right() instanceof Operand.VarOperand vr
+                && left instanceof AgentHandle h) {
+            resultVal = h.store.get(vr.name());
         } else {
             resultVal = evalBinary(left, a.op(), right);
         }
@@ -403,7 +408,8 @@ public final class IrInterpreter {
             case ">=" -> toInt(left) >= toInt(right);
             case "&&" -> truthy(left) && truthy(right);
             case "||" -> truthy(left) || truthy(right);
-            case "."  -> left instanceof Map<?, ?> m && right != null ? m.get(right.toString()) : null;
+            case "."  -> left instanceof AgentHandle h && right != null ? h.store.get(right.toString())
+                       : left instanceof Map<?, ?> m  && right != null ? m.get(right.toString()) : null;
             default   -> 0;
         };
     }
@@ -485,6 +491,22 @@ public final class IrInterpreter {
         return list.get(i);
     }
 
+    /** Copy world fields into the agent store so agents can read/write shared world state. */
+    private void injectWorldFields(AgentHandle agent) {
+        for (Map.Entry<String, Object> e : worldStore.entrySet()) {
+            agent.store.put(e.getKey(), e.getValue());
+        }
+    }
+
+    /** Write back any world-field keys that the agent may have modified. */
+    private void flushWorldFields(AgentHandle agent) {
+        for (String key : worldStore.keySet()) {
+            if (agent.store.containsKey(key)) {
+                worldStore.put(key, agent.store.get(key));
+            }
+        }
+    }
+
     private void abmStep() {
         if (worldName == null) return;
         FunctionIR pre  = functions.get(FN_PREFIX_WORLD + worldName + FN_SUFFIX_PRE);
@@ -496,8 +518,10 @@ public final class IrInterpreter {
             FunctionIR update = functions.get(FN_PREFIX_UPDATE + agent.typeName);
             if (update != null) {
                 agent.store.put(KEY_SELF, agent);
+                injectWorldFields(agent);
                 currentAgent = agent;
                 runFunction(update, List.of(), agent.store);
+                flushWorldFields(agent);
             }
             if (!agents.contains(agent)) continue; // destroyed during update
             Ast.AgentDeclNode decl = findAgentDecl(agent.typeName);
@@ -506,8 +530,10 @@ public final class IrInterpreter {
                     FunctionIR zoneFunc = functions.get(FN_PREFIX_ZONE + agent.typeName + "_" + z.name());
                     if (zoneFunc != null) {
                         agent.store.put(KEY_SELF, agent);
+                        injectWorldFields(agent);
                         currentAgent = agent;
                         runFunction(zoneFunc, List.of(), agent.store);
+                        flushWorldFields(agent);
                     }
                     if (!agents.contains(agent)) break; // destroyed during a zone
                 }
@@ -587,6 +613,32 @@ public final class IrInterpreter {
             if (within) near.add(a);
         }
         if (n.result() != null) store.put(n.result(), near);
+    }
+
+    private boolean executeZoneEnter(Instr.ZoneEnterInstr z) {
+        if (currentAgent == null) {
+            Integer target = labelMap.get(z.skipLabel());
+            if (target != null) pc = target;
+            return false;
+        }
+        int radius = toInt(get(z.radius()));
+        AgentHandle self = currentAgent;
+        for (AgentHandle a : agents) {
+            if (a == self) continue;
+            if (!z.targetType().equals(a.typeName)) continue;
+            boolean within = true;
+            for (String field : DEFAULT_POSITION_FIELDS) {
+                if (Math.abs(toInt(a.store.get(field)) - toInt(self.store.get(field))) > radius) {
+                    within = false;
+                    break;
+                }
+            }
+            if (within) return true; // found one — enter the zone block
+        }
+        // no matching agent within range — skip
+        Integer target = labelMap.get(z.skipLabel());
+        if (target != null) pc = target;
+        return false;
     }
 
     private Ast.AgentDeclNode findAgentDecl(String name) {

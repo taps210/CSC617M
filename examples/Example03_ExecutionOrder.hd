@@ -1,16 +1,23 @@
-// Execution Order Verification
+// Execution Order Verification + Shared Resource Access
 //
-// Verifies that each step() runs in exactly this order:
-//   1. world.pre  (runs once)
-//   2. agent.update  (runs for every live agent)
-//   3. world.post  (runs once)
+// Verifies:
+//   1. Each step() runs in order: world.pre → agent.update × N → world.post
+//   2. Agents can read and write world fields directly (tokens)
+//   3. Sequential execution: each agent sees the updated token count left by
+//      the previous agent, not the original value at the start of the step
 //
-// Expected output pattern per step:
-//   [pre] tick N
-//   [Marker] update N
-//   [post] tick N
+// Setup:
+//   - World starts with 15 tokens
+//   - 3 Marker agents, each consuming 1 token per step
+//   - After each step: tokens decreases by 3 (one per Marker, in spawn order)
+//   - post prints remaining tokens — proves all mutations are visible
 //
-// If lines appear out of order, the step() cycle is broken.
+// Expected output per step:
+//   [pre] tick N, tokens = M
+//   [Marker id=0] tokens before = M,   tokens after = M-1
+//   [Marker id=1] tokens before = M-1, tokens after = M-2
+//   [Marker id=2] tokens before = M-2, tokens after = M-3
+//   [post] tick N+1, tokens = M-3
 //
 // Run: ./gradlew run --args="--run examples/Example03_ExecutionOrder.hd"
 
@@ -19,7 +26,10 @@ agent Marker {
     int id;
 
     update {
-        print("  [Marker] update id =", id, "@ step", 0);
+        int before;
+        before = tokens;
+        tokens = tokens - 1;
+        print("  [Marker id=", id, "] tokens before =", before, ", tokens after =", tokens);
     }
 }
 
@@ -28,30 +38,32 @@ world Sequencer {
     int height = 5;
     bool spawned = false;
     int tick = 0;
+    int tokens = 15;
 
     pre {
         if (!spawned) {
-            spawn Marker(0, 0);
-            spawn Marker(1, 0);
-            spawn Marker(2, 0);
+            spawn Marker(0, 0, 0);
+            spawn Marker(1, 0, 1);
+            spawn Marker(2, 0, 2);
             spawned = true;
         }
-        print("[pre] tick =", tick);
+        print("[pre] tick =", tick, ", tokens =", tokens);
     }
 
     post {
         tick = tick + 1;
-        print("[post] tick =", tick);
+        print("[post] tick =", tick, ", tokens remaining =", tokens);
     }
 }
 
 void main() {
     int steps = 0;
-    print("=== Execution Order Test ===");
-    print("Expected: [pre] then [Marker] updates then [post], each step");
+    print("=== Execution Order + Shared Resource Test ===");
+    print("3 Markers each consume 1 token/step. Tokens start at 15.");
+    print("Sequential depletion proves correct execution order.");
     repeat {
         step();
         steps = steps + 1;
     } until (steps >= 3);
-    print("=== Done. Ran", steps, "steps ===");
+    print("=== Done. Ran", steps, "steps. See token counts above (15 -> 6). ===");
 }

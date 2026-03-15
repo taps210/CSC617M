@@ -10,7 +10,8 @@ public sealed interface Instr
         Instr.GotoInstr, Instr.IfGotoInstr, Instr.IfZeroGotoInstr, Instr.ParamInstr, Instr.CallInstr, Instr.ReturnInstr,
         Instr.ReadInstr, Instr.PrintInstr,
         Instr.AllocArrayInstr, Instr.ArrayStoreInstr,
-        Instr.SpawnInstr, Instr.MoveInstr, Instr.StepInstr, Instr.DestroyInstr, Instr.NeighborsInstr, Instr.AbmCallInstr {
+        Instr.SpawnInstr, Instr.MoveInstr, Instr.StepInstr, Instr.DestroyInstr, Instr.NeighborsInstr, Instr.AbmCallInstr,
+        Instr.ZoneEnterInstr {
 
     /** Label (target for goto / if-goto). */
     record LabelInstr(String label) implements Instr {}
@@ -74,4 +75,7 @@ public sealed interface Instr
 
     /** ABM call (e.g. rand): name(args); result is null for statement form. */
     record AbmCallInstr(String name, List<Operand> args, String result) implements Instr {}
+
+    /** Zone proximity guard: if no agents of targetType within radius, goto skipLabel. */
+    record ZoneEnterInstr(Operand radius, String targetType, String skipLabel) implements Instr {}
 }

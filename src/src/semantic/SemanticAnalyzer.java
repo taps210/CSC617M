@@ -20,10 +20,15 @@ public class SemanticAnalyzer {
         return new SemanticAnalyzer().analyzeInternal(program);
     }
 
+    private static final java.util.Set<String> PRIMITIVE_TYPES =
+            java.util.Set.of("int", "float", "char", "string", "bool", "void");
+
     private List<SemanticError> analyzeInternal(ProgramNode program) {
         errors.clear();
         table.pushScope();
         defineBuiltinTypes();
+        // Pre-register all agent and world names so forward references resolve correctly
+        for (TypeDeclNode td : program.typeDecls()) preRegisterTypeDecl(td);
         for (TypeDeclNode td : program.typeDecls()) visitTypeDecl(td);
         for (ConstDeclNode c : program.constDecls()) visitConstDecl(c);
         for (VarDeclNode v : program.globalVarDecls()) visitVarDecl(v);
@@ -44,6 +49,24 @@ public class SemanticAnalyzer {
         table.define(SymbolTable.Symbol.type("void", new DataTypeNode(zero, "void", 0), zero));
     }
 
+    /** Pass 1: register agent and world names so forward references resolve during body validation. */
+    private void preRegisterTypeDecl(TypeDeclNode n) {
+        if (n instanceof AgentDeclNode a) {
+            if (!table.define(SymbolTable.Symbol.agent(a.name(), a.location())))
+                error(a.location(), "Duplicate agent name: " + a.name());
+        } else if (n instanceof WorldDeclNode w) {
+            if (!table.define(SymbolTable.Symbol.world(w.name(), w.location())))
+                error(w.location(), "Duplicate world name: " + w.name());
+            // Register world fields in global scope so agents can read/write them from update/zone
+            for (VarDeclNode f : w.fields()) {
+                for (DeclaratorNode d : f.declarators()) {
+                    table.define(SymbolTable.Symbol.variable(d.name(), f.dataType(), d.location()));
+                }
+            }
+        }
+    }
+
+    /** Pass 2: validate bodies (names already registered by preRegisterTypeDecl). */
     private void visitTypeDecl(TypeDeclNode n) {
         if (n instanceof TypeAliasNode a) {
             SymbolTable.Symbol sym = SymbolTable.Symbol.type(a.typeName(), null, a.location());
@@ -51,7 +74,7 @@ public class SemanticAnalyzer {
             return;
         }
         if (n instanceof AgentDeclNode a) {
-            if (!table.define(SymbolTable.Symbol.agent(a.name(), a.location()))) error(a.location(), "Duplicate agent name: " + a.name());
+            // Name already registered in pre-pass; just validate body
             table.pushScope();
             agentDepth++;
             for (VarDeclNode f : a.fields()) visitVarDecl(f);
@@ -62,7 +85,7 @@ public class SemanticAnalyzer {
             return;
         }
         if (n instanceof WorldDeclNode w) {
-            if (!table.define(SymbolTable.Symbol.world(w.name(), w.location()))) error(w.location(), "Duplicate world name: " + w.name());
+            // Name already registered in pre-pass; just validate body
             table.pushScope();
             for (VarDeclNode f : w.fields()) visitVarDecl(f);
             if (w.preBlock() != null) visitBlock(w.preBlock());
@@ -73,6 +96,9 @@ public class SemanticAnalyzer {
 
     private void visitZoneDecl(ZoneDeclNode z) {
         visitExpr(z.condition());
+        SymbolTable.Symbol targetSym = table.resolve(z.targetIdent());
+        if (targetSym == null) error(z.location(), "Undefined agent type in zone: " + z.targetIdent());
+        else if (targetSym.kind != SymbolTable.Kind.AGENT) error(z.location(), "Not an agent type in zone: " + z.targetIdent());
         visitBlock(z.block());
     }
 
@@ -86,6 +112,13 @@ public class SemanticAnalyzer {
     }
 
     private void visitVarDecl(VarDeclNode n) {
+        String base = n.dataType().baseTypeName();
+        if (!PRIMITIVE_TYPES.contains(base)) {
+            SymbolTable.Symbol typeSym = table.resolve(base);
+            if (typeSym == null) error(n.location(), "Undefined type: " + base);
+            else if (typeSym.kind != SymbolTable.Kind.AGENT && typeSym.kind != SymbolTable.Kind.TYPE)
+                error(n.location(), "Not a valid type: " + base);
+        }
         for (DeclaratorNode d : n.declarators()) {
             if (table.definedInCurrentScope(d.name())) error(d.location(), "Duplicate variable: " + d.name());
             else table.define(SymbolTable.Symbol.variable(d.name(), n.dataType(), d.location()));

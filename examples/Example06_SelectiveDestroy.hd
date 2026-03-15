@@ -1,0 +1,80 @@
+// Selective Destroy by Agent Field + World Destroy Counter
+//
+// Verifies:
+//   1. nearby[i].field works — you can read fields off agents in neighbors()
+//   2. You can selectively destroy a specific agent by checking its field value
+//   3. The destroyed agent is gone from a subsequent neighbors() call
+//   4. Non-targeted agents survive untouched
+//   5. Agent can write to world field: Hunter increments world destroyedCount
+//
+// Setup:
+//   - Three Target agents at (5,5) with tag=1, tag=2, tag=3
+//   - One Hunter at (5,5) that:
+//       a. Calls neighbors() -- sees 3 Targets
+//       b. Destroys only the one where tag == 2, increments destroyedCount
+//       c. Calls neighbors() again -- should see only 2 remaining (tag 1 and 3)
+//   - post prints destroyedCount to verify world field was written from update
+//
+// spawn Target(x, y, tag) -- third positional arg maps to the 'tag' field
+//
+// Run: ./gradlew run --args="--run examples/Example06_SelectiveDestroy.hd"
+
+agent Target {
+    int x, y;
+    int tag;
+
+    update {}
+}
+
+agent Hunter {
+    int x, y;
+    Target nearby[];
+    Target after[];
+
+    update {
+        nearby = neighbors(self, 1);
+        print("  [Hunter] neighbors before destroy:", nearby.length);
+
+        for (int fi = 0; fi < nearby.length; fi = fi + 1) {
+            if (nearby[fi].tag == 2) {
+                print("  [Hunter] found tag=2, destroying it");
+                destroy(nearby[fi]);
+                destroyedCount = destroyedCount + 1;
+            }
+        }
+
+        after = neighbors(self, 1);
+        print("  [Hunter] neighbors after destroy:", after.length, "(expect 2)");
+        for (int fj = 0; fj < after.length; fj = fj + 1) {
+            print("    surviving tag =", after[fj].tag);
+        }
+    }
+}
+
+world TestWorld {
+    int width = 10;
+    int height = 10;
+    bool spawned = false;
+    int destroyedCount = 0;
+
+    pre {
+        if (!spawned) {
+            spawn Target(5, 5, 1);
+            spawn Target(5, 5, 2);
+            spawn Target(5, 5, 3);
+            spawn Hunter(5, 5);
+            spawned = true;
+            print("[World] Spawned Target(tag=1), Target(tag=2), Target(tag=3), Hunter at (5,5)");
+        }
+    }
+
+    post {
+        print("[post] destroyedCount =", destroyedCount, "(expect 1)");
+    }
+}
+
+void main() {
+    print("=== Selective Destroy + World Counter Test ===");
+    step();
+    print("=== Done ===");
+}

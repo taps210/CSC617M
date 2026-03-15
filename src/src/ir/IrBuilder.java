@@ -64,7 +64,7 @@ public final class IrBuilder {
                 for (ZoneDeclNode z : a.zones()) {
                     String zoneName = FN_PREFIX_ZONE + a.name() + "_" + z.name();
                     IrBuilder b = new IrBuilder(constValues);
-                    b.buildZoneBody(z.condition(), z.block());
+                    b.buildZoneBody(z.condition(), z.targetIdent(), z.block());
                     out.add(new FunctionIR(zoneName, List.of(), new ArrayList<>(b.instructions)));
                 }
             }
@@ -98,10 +98,10 @@ public final class IrBuilder {
         instructions.add(i);
     }
 
-    private void buildZoneBody(ExprNode condition, BlockNode body) {
-        Operand cond = genExpr(condition);
+    private void buildZoneBody(ExprNode radiusExpr, String targetType, BlockNode body) {
+        Operand radius = genExpr(radiusExpr);
         String LEnd = nextLabel();
-        emit(new Instr.IfZeroGotoInstr(cond, LEnd));
+        emit(new Instr.ZoneEnterInstr(radius, targetType, LEnd));
         genBlock(body);
         emit(new Instr.LabelInstr(LEnd));
     }

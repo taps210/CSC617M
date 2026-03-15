@@ -1,22 +1,25 @@
-// Move and Neighbors Correctness Test
+// Move and Neighbors Correctness Test + Shared Resource Counter
 //
 // Verifies:
 //   1. move() correctly updates self.x and self.y
 //   2. neighbors(self, radius) returns agents within Chebyshev radius
 //   3. neighbors() does NOT return the calling agent itself
-//   4. agents outside the radius are NOT returned
+//   4. Agents outside the radius are NOT returned
+//   5. Agents can write to world fields: Seeker increments world's
+//      'discoveries' counter each step it detects the Anchor
 //
 // Setup:
-//   - One Anchor agent placed at (10, 10), never moves
-//   - One Seeker agent starts far away (0, 0), moves 2 steps per tick toward (10, 10)
-//   - When Seeker is within radius 3 of Anchor, it reports the find
+//   - One Anchor agent at (10, 10), never moves
+//   - One Seeker starts at (0, 0), moves +2 toward (10, 10) each step
+//   - When Seeker is within radius 3 of Anchor, it increments world discoveries
+//   - post prints the running discovery count
 //
 // Run: ./gradlew run --args="--run examples/Example04_MoveAndNeighbors.hd"
 
 agent Anchor {
     int x, y;
     update {
-        // Stays put — position should never change
+        // Stays put — position never changes
     }
 }
 
@@ -25,24 +28,16 @@ agent Seeker {
     Anchor found[];
 
     update {
-        // Move toward (10, 10) by up to 2 each axis per step
         int nx;
         int ny;
-        if (self.x < 10) {
-            nx = self.x + 2;
-        } else {
-            nx = self.x;
-        }
-        if (self.y < 10) {
-            ny = self.y + 2;
-        } else {
-            ny = self.y;
-        }
+        if (self.x < 10) { nx = self.x + 2; } else { nx = self.x; }
+        if (self.y < 10) { ny = self.y + 2; } else { ny = self.y; }
         move(nx, ny);
 
         found = neighbors(self, 3);
         if (found.length > 0) {
-            print("  [Seeker] found Anchor! Seeker pos = (", self.x, ",", self.y, ") neighbors =", found.length);
+            discoveries = discoveries + 1;
+            print("  [Seeker] found Anchor! pos = (", self.x, ",", self.y, ") total discoveries =", discoveries);
         } else {
             print("  [Seeker] not found yet. pos = (", self.x, ",", self.y, ")");
         }
@@ -53,24 +48,28 @@ world TestGrid {
     int width = 20;
     int height = 20;
     bool spawned = false;
+    int discoveries = 0;
 
     pre {
         if (!spawned) {
             spawn Anchor(10, 10);
             spawn Seeker(0, 0);
             spawned = true;
-            print("[World] Anchor at (10,10), Seeker starting at (0,0)");
+            print("[World] Anchor at (10,10), Seeker at (0,0), radius = 3");
         }
     }
 
-    post {}
+    post {
+        if (discoveries > 0) {
+            print("[post] discoveries so far =", discoveries);
+        }
+    }
 }
 
 void main() {
     int steps = 0;
-    print("=== Move and Neighbors Test ===");
-    print("Seeker moves +2 per step toward Anchor at (10,10).");
-    print("Should report 'found Anchor' once within radius 3.");
+    print("=== Move, Neighbors + World Counter Test ===");
+    print("Seeker moves +2/step toward Anchor. Increments world discoveries on detect.");
     repeat {
         step();
         steps = steps + 1;
