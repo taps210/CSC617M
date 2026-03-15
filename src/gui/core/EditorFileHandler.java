@@ -21,6 +21,7 @@ public class EditorFileHandler {
     private final Consumer<String> setText;
     private final Runnable onFileChanged;
     private File currentFile;
+    private File lastDirectory;
 
     public EditorFileHandler(JFrame parent, Supplier<String> getText, Consumer<String> setText, Runnable onFileChanged) {
         this.parent = parent;
@@ -69,7 +70,7 @@ public class EditorFileHandler {
     }
 
     private File showFileChooser(int mode) {
-        JFileChooser chooser = new JFileChooser();
+        JFileChooser chooser = new JFileChooser(lastDirectory);
         chooser.setFileFilter(new FileNameExtensionFilter(HD_FILTER_DESC, HD_EXTENSION));
         int result = mode == JFileChooser.SAVE_DIALOG
             ? chooser.showSaveDialog(parent)
@@ -79,6 +80,7 @@ public class EditorFileHandler {
         if (f != null && mode == JFileChooser.SAVE_DIALOG && !f.getName().toLowerCase().endsWith("." + HD_EXTENSION)) {
             f = new File(f.getParent(), f.getName() + "." + HD_EXTENSION);
         }
+        if (f != null) lastDirectory = f.getParentFile();
         return f;
     }
 

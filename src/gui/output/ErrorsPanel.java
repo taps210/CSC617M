@@ -3,6 +3,7 @@ package src.gui.output;
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
 import src.gui.model.CompileError;
+import src.gui.model.Theme;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -10,28 +11,34 @@ import java.awt.*;
 import java.util.List;
 
 /**
- * JTable: # | Line | Col | Message. Row click moves editor caret to that line/col.
- * ERROR rows in red, WARN in orange.
+ * Header badge (N errors) + JTable: # | Source | Line | Col | Message.
+ * Row click moves editor caret to that line/col. ERROR rows in red, WARN in orange.
  */
-public class ErrorsPanel extends JScrollPane implements CompileListener {
-    private static final String[] COLUMNS = {"#", "Line", "Col", "Message"};
+public class ErrorsPanel extends JPanel implements CompileListener {
+    private static final String[] COLUMNS = {"#", "Source", "Line", "Col", "Message"};
+    private final PanelHeader header;
     private final JTable table;
     private final DefaultTableModel model;
     private List<CompileError> errors = java.util.Collections.emptyList();
-    private Runnable onErrorSelected; // (line, col) -> move caret
+    private Runnable onErrorSelected;
 
     public ErrorsPanel() {
+        super(new BorderLayout());
+        header = new PanelHeader();
+        header.set("Errors", Theme.PANEL_HEADER_NEUTRAL, "");
+
         model = new DefaultTableModel(COLUMNS, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
+            @Override public boolean isCellEditable(int row, int col) { return false; }
         };
         table = new JTable(model);
         table.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
             @Override
-            public Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focus, int row, int col) {
+            public Component getTableCellRendererComponent(JTable t, Object value, boolean selected,
+                                                           boolean focus, int row, int col) {
                 Component c = super.getTableCellRendererComponent(t, value, selected, focus, row, col);
                 if (row >= 0 && row < errors.size()) {
-                    c.setForeground(errors.get(row).severity() == CompileError.Severity.WARN ? Color.ORANGE.darker() : Color.RED);
+                    c.setForeground(errors.get(row).severity() == CompileError.Severity.WARN
+                            ? Color.ORANGE.darker() : Color.RED);
                 }
                 return c;
             }
@@ -41,20 +48,22 @@ public class ErrorsPanel extends JScrollPane implements CompileListener {
             int row = table.getSelectedRow();
             if (row >= 0 && row < errors.size()) onErrorSelected.run();
         });
-        javax.swing.table.TableColumnModel colModel = table.getColumnModel();
-        colModel.getColumn(0).setPreferredWidth(28);   // #
-        colModel.getColumn(1).setPreferredWidth(44);   // Line
-        colModel.getColumn(2).setPreferredWidth(44);   // Col
-        colModel.getColumn(3).setPreferredWidth(500); // Message - wide so full text is visible
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-        setViewportView(table);
+        table.getTableHeader().setReorderingAllowed(false);
+
+        javax.swing.table.TableColumnModel cm = table.getColumnModel();
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+
+        add(header, BorderLayout.NORTH);
+        add(scroll, BorderLayout.CENTER);
     }
 
     public void setOnErrorSelected(Runnable onErrorSelected) {
         this.onErrorSelected = onErrorSelected;
     }
 
-    /** Call this from the callback to get the currently selected error and move editor caret. */
     public CompileError getSelectedError() {
         int row = table.getSelectedRow();
         if (row >= 0 && row < errors.size()) return errors.get(row);
@@ -67,7 +76,17 @@ public class ErrorsPanel extends JScrollPane implements CompileListener {
         model.setRowCount(0);
         int n = 1;
         for (CompileError e : errors) {
-            model.addRow(new Object[]{n++, e.line(), e.col(), e.message()});
+            model.addRow(new Object[]{n++, e.source().name(), e.line(), e.col(), e.message()});
+        }
+        int errorCount = (int) errors.stream()
+                .filter(e -> e.severity() == CompileError.Severity.ERROR).count();
+        int warnCount  = (int) errors.stream()
+                .filter(e -> e.severity() == CompileError.Severity.WARN).count();
+        if (errorCount == 0 && warnCount == 0) {
+            header.set("No errors", Theme.PANEL_HEADER_OK, "");
+        } else {
+            String badge = errorCount + " error(s)" + (warnCount > 0 ? "  " + warnCount + " warning(s)" : "");
+            header.set(badge, Theme.PANEL_HEADER_FAIL, "");
         }
     }
 }

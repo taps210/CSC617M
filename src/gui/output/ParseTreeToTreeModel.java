@@ -1,24 +1,20 @@
-package src.gui.analysis;
+package src.gui.output;
 
 import src.parsetree.ParseTreeNode;
-import src.parsetree.ParseTreeKind;
 
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeModel;
-import java.util.List;
 
 /**
- * Builds a Swing DefaultTreeModel from a ParseTreeNode for parse tree visualization.
+ * Builds a Swing tree node from a ParseTreeNode for parse tree visualization.
  */
-public final class ParseTreeToTreeModel {
+final class ParseTreeToTreeModel {
 
-    public static DefaultTreeModel from(ParseTreeNode root) {
-        return new DefaultTreeModel(toSwingNode(root));
+    static DefaultMutableTreeNode from(ParseTreeNode root) {
+        return toSwingNode(root);
     }
 
     private static DefaultMutableTreeNode toSwingNode(ParseTreeNode n) {
-        String label = label(n);
-        DefaultMutableTreeNode node = new DefaultMutableTreeNode(label);
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(label(n));
         for (ParseTreeNode c : n.children()) {
             node.add(toSwingNode(c));
         }
@@ -35,10 +31,7 @@ public final class ParseTreeToTreeModel {
             return "TERMINAL";
         }
         String kind = n.kind().name();
-        if (n.token() != null) {
-            int line = n.token().line();
-            return kind + " (L" + line + ")";
-        }
+        if (n.token() != null) return kind + " (L" + n.token().line() + ")";
         return kind;
     }
 }

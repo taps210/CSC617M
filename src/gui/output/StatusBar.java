@@ -2,6 +2,7 @@ package src.gui.output;
 
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
+import src.gui.model.Theme;
 
 import javax.swing.*;
 import javax.swing.text.Element;
@@ -18,10 +19,15 @@ public class StatusBar extends JPanel implements CompileListener {
 
     public StatusBar() {
         setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
-        setBorder(BorderFactory.createEtchedBorder());
+        setBackground(Theme.STATUS_BAR_BG);
+        setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
         statusLabel = new JLabel("Ready");
         positionLabel = new JLabel("Line 1, Col 1");
         errorsLabel = new JLabel("0 errors");
+        for (JLabel label : new JLabel[]{statusLabel, positionLabel, errorsLabel}) {
+            label.setForeground(Theme.STATUS_BAR_FG);
+            label.setFont(Theme.STATUS_BAR_FONT);
+        }
         add(statusLabel);
         add(Box.createHorizontalStrut(16));
         add(positionLabel);

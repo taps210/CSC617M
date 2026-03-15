@@ -14,11 +14,6 @@ public class CompileMetrics {
 
     // Scanner
     public int totalTokens;
-    public int keywordCount;
-    public int identifierCount;
-    public int literalCount;
-    public int operatorCount;
-    public int commentCount;
     public int scanErrorCount;
     public long scanTimeNs;
 

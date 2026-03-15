@@ -3,6 +3,8 @@ package src.gui.output;
 import src.Token;
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
+import src.gui.model.CompileError;
+import src.gui.model.Theme;
 import src.gui.model.TokenColorMap;
 
 import javax.swing.*;
@@ -12,14 +14,21 @@ import java.awt.*;
 import java.util.List;
 
 /**
- * JTable showing token stream: Type | Lexeme | Line | Col. Rows colored by TokenColorMap.
+ * Header badge (Scan: OK / N errors) + JTable: Type | Lexeme | Line | Col. Rows colored by TokenColorMap.
  */
-public class ScannerOutputPanel extends JScrollPane implements CompileListener {
+public class ScannerOutputPanel extends JPanel implements CompileListener {
     private static final String[] COLUMNS = {"Type", "Lexeme", "Line", "Col"};
+    private final PanelHeader header;
     private final JTable table;
     private final DefaultTableModel model;
+    private List<Token> tokenList = java.util.Collections.emptyList();
 
     public ScannerOutputPanel() {
+        super(new BorderLayout());
+
+        header = new PanelHeader();
+        header.set("Scanner", Theme.PANEL_HEADER_NEUTRAL, "");
+
         model = new DefaultTableModel(COLUMNS, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
@@ -37,15 +46,18 @@ public class ScannerOutputPanel extends JScrollPane implements CompileListener {
             }
         });
         table.getTableHeader().setReorderingAllowed(false);
-        setViewportView(table);
+
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+
+        add(header, BorderLayout.NORTH);
+        add(scroll, BorderLayout.CENTER);
     }
 
     private Token getTokenAtRow(int row) {
         if (row < 0 || row >= tokenList.size()) return null;
         return tokenList.get(row);
     }
-
-    private List<Token> tokenList = java.util.Collections.emptyList();
 
     @Override
     public void onCompileComplete(CompileResult result) {
@@ -54,5 +66,10 @@ public class ScannerOutputPanel extends JScrollPane implements CompileListener {
         for (Token t : tokenList) {
             model.addRow(new Object[]{t.type().name(), t.lexeme(), t.line(), t.col()});
         }
+        boolean hasLexErrors = result.errors().stream()
+                .anyMatch(e -> e.source() == CompileError.Source.LEXER);
+        String badge = hasLexErrors ? "Scan: FAILED" : "Scan: OK";
+        Color badgeColor = hasLexErrors ? Theme.PANEL_HEADER_FAIL : Theme.PANEL_HEADER_OK;
+        header.set(badge, badgeColor, "");
     }
 }

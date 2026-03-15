@@ -3,32 +3,34 @@ package src.gui.editor;
 import src.gui.core.CompileController;
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
+import src.gui.model.Theme;
 
 import javax.swing.*;
 import javax.swing.text.Element;
 import java.awt.*;
 
 /**
- * Editor panel: JTextPane with syntax highlighting, error underlines,
- * line numbers, and Run / Analyze toolbar.
+ * Editor panel: JTextPane with syntax highlighting, error underlines, and line numbers.
+ * Run/Analyze actions are exposed via run() and are triggered from HerdIDE's tab bar.
  */
 public class EditorPanel extends JPanel implements CompileListener {
     private final JTextPane editor;
     private final CompileController controller;
     private final ErrorHighlighter errorHighlighter;
-    private final JButton runButton;
-    private final JButton analyzeButton;
-    private final Runnable onAnalyzeClicked;
 
-    public EditorPanel(CompileController controller, Runnable onAnalyzeClicked) {
+    public EditorPanel(CompileController controller) {
         super(new BorderLayout());
         this.controller = controller;
-        this.onAnalyzeClicked = onAnalyzeClicked;
         this.editor = new JTextPane();
-        editor.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
+        editor.setFont(Theme.EDITOR_FONT);
+        editor.setBackground(Theme.EDITOR_BG);
+        editor.setForeground(Theme.EDITOR_FG);
+        editor.setCaretColor(Theme.EDITOR_CARET);
+        editor.setSelectionColor(Theme.EDITOR_SELECTION);
         editor.setMargin(new Insets(4, 4, 4, 4));
         new HerdSyntaxHighlighter(editor);
         this.errorHighlighter = new ErrorHighlighter(editor);
+        new HoverTooltipManager(editor, controller);
 
         JScrollPane scroll = new JScrollPane(editor);
         LineNumberComponent lineNumbers = new LineNumberComponent(editor);
@@ -39,21 +41,6 @@ public class EditorPanel extends JPanel implements CompileListener {
             scroll.revalidate();
         });
 
-        JToolBar toolbar = new JToolBar();
-        toolbar.setFloatable(false);
-        runButton = new JButton("Run");
-        runButton.setToolTipText("Run tokenizer and parser (Ctrl+Enter)");
-        runButton.addActionListener(e -> run());
-        analyzeButton = new JButton("Analyze");
-        analyzeButton.setToolTipText("Open analysis window (requires at least one run)");
-        analyzeButton.setEnabled(false);
-        analyzeButton.addActionListener(e -> {
-            if (onAnalyzeClicked != null) onAnalyzeClicked.run();
-        });
-        toolbar.add(runButton);
-        toolbar.add(analyzeButton);
-
-        add(toolbar, BorderLayout.NORTH);
         add(scroll, BorderLayout.CENTER);
 
         // Ctrl+Enter to run
@@ -72,7 +59,6 @@ public class EditorPanel extends JPanel implements CompileListener {
     @Override
     public void onCompileComplete(CompileResult result) {
         errorHighlighter.setErrors(result.errors());
-        analyzeButton.setEnabled(true);
     }
 
     public JTextPane getEditor() { return editor; }

@@ -5,6 +5,7 @@ import static src.Ast.*;
 import src.gui.model.CompileError;
 import src.gui.model.CompileMetrics;
 import src.parsetree.ParseTreeNode;
+import src.semantic.SymbolEntry;
 
 import java.util.List;
 import java.util.Optional;
@@ -22,12 +23,14 @@ public record CompileResult(
         Optional<ProgramNode> ast,
         Optional<ParseTreeNode> parseTree,
         Optional<String> irText,
-        Optional<String> interpreterOutput
+        Optional<String> cfgText,
+        Optional<String> interpreterOutput,
+        List<SymbolEntry> symbolEntries
 ) {
     /** Legacy constructor without AST or parse tree (uses Optional.empty()). */
     public CompileResult(String sourceText, List<Token> tokens, String parserTrace,
                          List<CompileError> errors, CompileMetrics metrics) {
         this(sourceText, tokens, parserTrace, errors, metrics, Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), List.of());
     }
 }

@@ -1,5 +1,7 @@
 package src.gui.editor;
 
+import src.gui.model.Theme;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -17,6 +19,8 @@ public class LineNumberComponent extends JComponent {
     public LineNumberComponent(JTextPane editor) {
         this.editor = editor;
         setFont(editor.getFont());
+        setBackground(Theme.LINE_NUMBER_BG);
+        setForeground(Theme.LINE_NUMBER_FG);
         updatePreferredWidth();
         setMinimumSize(new Dimension(MIN_WIDTH, 0));
         editor.getDocument().addDocumentListener(new DocumentListener() {

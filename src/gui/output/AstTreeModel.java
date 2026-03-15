@@ -1,19 +1,18 @@
-package src.gui.analysis;
+package src.gui.output;
 
 import static src.Ast.*;
 
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeModel;
 import java.util.List;
+import java.util.function.Function;
 
 /**
- * Builds a Swing DefaultTreeModel from a ProgramNode for parse tree visualization.
- * Single-file adapter: each AST node becomes a tree node with a short label and children.
+ * Builds a Swing tree node from a ProgramNode for AST visualization.
  */
-public final class AstTreeModel {
+final class AstTreeModel {
 
-    public static DefaultTreeModel from(ProgramNode root) {
-        return new DefaultTreeModel(fromProgram(root));
+    static DefaultMutableTreeNode from(ProgramNode root) {
+        return fromProgram(root);
     }
 
     private static String L(SourceSpan s) { return s == null ? "" : " (L" + s.line() + ")"; }
@@ -22,16 +21,14 @@ public final class AstTreeModel {
 
     private static void addE(DefaultMutableTreeNode p, ExprNode e) { if (e != null) p.add(fromExpr(e)); }
     private static void addS(DefaultMutableTreeNode p, StatementNode s) { if (s != null) p.add(fromStatement(s)); }
-    private static void addB(DefaultMutableTreeNode p, BlockNode b) { if (b != null) p.add(fromBlock(b)); }
     private static DefaultMutableTreeNode wrap(String label, DefaultMutableTreeNode child) {
         DefaultMutableTreeNode w = n(label); w.add(child); return w;
     }
-    private static <T> DefaultMutableTreeNode list(String listLabel, List<T> list, java.util.function.Function<T, DefaultMutableTreeNode> mapper) {
+    private static <T> DefaultMutableTreeNode list(String listLabel, List<T> list, Function<T, DefaultMutableTreeNode> mapper) {
         DefaultMutableTreeNode r = n(listLabel + " (" + list.size() + ")");
         for (T item : list) r.add(mapper.apply(item));
         return r;
     }
-
 
     private static DefaultMutableTreeNode fromProgram(ProgramNode x) {
         DefaultMutableTreeNode r = n("Program", x.location());

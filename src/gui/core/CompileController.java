@@ -6,16 +6,19 @@ import src.errors.SemanticError;
 import src.Parser;
 import src.Scanner;
 import src.Token;
-import src.TokenType;
 import static src.Ast.*;
 import src.gui.model.CompileError;
 import src.parsetree.ParseTreeNode;
 import src.gui.model.CompileMetrics;
 import src.semantic.SemanticAnalyzer;
+import src.semantic.SemanticResult;
+import src.semantic.SymbolEntry;
 import src.ir.IrBuilder;
 import src.ir.IrFormatter;
 import src.ir.FunctionIR;
 import src.ir.IrInterpreter;
+import src.ir.BasicBlocks;
+import src.ir.ControlFlowGraph;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,37 +26,12 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Single compile authority. Runs scanner and parser, measures timing,
  * builds CompileResult and CompileMetrics, notifies listeners.
  */
 public class CompileController {
-    private static final Set<TokenType> KEYWORD_TYPES = Set.of(
-            TokenType.USE, TokenType.CONST, TokenType.TYPE, TokenType.RECORD, TokenType.AGENT, TokenType.WORLD,
-            TokenType.INT, TokenType.FLOAT, TokenType.CHAR, TokenType.STRING, TokenType.BOOL, TokenType.VOID,
-            TokenType.IF, TokenType.ELSE, TokenType.WHILE, TokenType.FOR, TokenType.REPEAT, TokenType.UNTIL,
-            TokenType.RETURN, TokenType.BREAK, TokenType.CONTINUE,
-            TokenType.READ, TokenType.PRINT,
-            TokenType.TRUE, TokenType.FALSE, TokenType.MAIN,
-            TokenType.SPAWN, TokenType.MOVE, TokenType.STEP, TokenType.NEIGHBORS, TokenType.RAND,
-            TokenType.UPDATE, TokenType.DESTROY, TokenType.ZONE, TokenType.PRE, TokenType.POST,
-            TokenType.SELF, TokenType.NULL, TokenType.ASSERT
-    );
-
-    private static final Set<TokenType> LITERAL_TYPES = Set.of(
-            TokenType.INT_LIT, TokenType.FLOAT_LIT, TokenType.STRING_LIT, TokenType.CHAR_LIT
-    );
-
-    private static final Set<TokenType> OPERATOR_TYPES = Set.of(
-            TokenType.PLUS, TokenType.MINUS, TokenType.STAR, TokenType.SLASH, TokenType.MOD,
-            TokenType.AMP, TokenType.ASSIGN,
-            TokenType.EQEQ, TokenType.NEQ, TokenType.LT, TokenType.LTE, TokenType.GT, TokenType.GTE,
-            TokenType.ANDAND, TokenType.OROR, TokenType.NOT,
-            TokenType.QMARK, TokenType.COLON
-    );
-
     private CompileResult lastResult;
     private final List<CompileListener> listeners = new ArrayList<>();
 
@@ -89,7 +67,6 @@ public class CompileController {
         metrics.scanTimeNs = t1 - t0;
         metrics.totalTokens = tokens.size();
         metrics.scanErrorCount = lexErrors.size();
-        countTokenCategories(tokens, metrics);
 
         for (LexicalErrorRecord r : lexErrors) {
             allErrors.add(new CompileError(r.line(), r.col(), r.message(), CompileError.Source.LEXER, CompileError.Severity.ERROR));
@@ -98,6 +75,7 @@ public class CompileController {
         String parserTrace = "";
         Optional<ProgramNode> ast = Optional.empty();
         Optional<ParseTreeNode> parseTree = Optional.empty();
+        List<SymbolEntry> symbolEntries = List.of();
         if (!tokens.isEmpty()) {
             StringBuilder trace = new StringBuilder();
             long p0 = System.nanoTime();
@@ -119,10 +97,11 @@ public class CompileController {
 
             // Semantic analysis after successful parse when AST is present
             if (ast.isPresent()) {
-                List<SemanticError> semanticErrors = SemanticAnalyzer.analyze(ast.get());
-                for (SemanticError se : semanticErrors) {
+                SemanticResult semResult = SemanticAnalyzer.analyzeDetailed(ast.get());
+                for (SemanticError se : semResult.errors()) {
                     allErrors.add(se.toCompileError());
                 }
+                symbolEntries = semResult.symbols();
             }
         }
 
@@ -130,6 +109,7 @@ public class CompileController {
 
         // IR generation (only when AST present and no errors)
         Optional<String> irText = Optional.empty();
+        Optional<String> cfgText = Optional.empty();
         Optional<String> interpreterOutput = Optional.empty();
         List<FunctionIR> irFuncs = List.of();
         boolean hasErrors = allErrors.stream().anyMatch(e -> e.severity() == CompileError.Severity.ERROR);
@@ -138,11 +118,15 @@ public class CompileController {
             try {
                 irFuncs = IrBuilder.buildProgram(ast.get());
                 StringBuilder irSb = new StringBuilder();
+                StringBuilder cfgSb = new StringBuilder();
                 for (FunctionIR f : irFuncs) {
                     irSb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
                     metrics.irInstrCount += f.instructions().size();
+                    List<BasicBlocks.Block> blocks = BasicBlocks.build(f.instructions());
+                    cfgSb.append(IrFormatter.formatCFG(new ControlFlowGraph(blocks))).append(System.lineSeparator());
                 }
                 irText = Optional.of(irSb.toString());
+                cfgText = Optional.of(cfgSb.toString());
             } catch (Exception e) {
                 allErrors.add(new CompileError(0, 0, e.getMessage(), CompileError.Source.IR, CompileError.Severity.ERROR));
             }
@@ -164,7 +148,7 @@ public class CompileController {
         }
 
         CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics, ast, parseTree,
-                irText, interpreterOutput);
+                irText, cfgText, interpreterOutput, symbolEntries);
         this.lastResult = result;
         for (CompileListener l : listeners) {
             l.onCompileComplete(result);
@@ -203,20 +187,4 @@ public class CompileController {
         metrics.codeLines = metrics.totalLines - blank - comment;
     }
 
-    private void countTokenCategories(List<Token> tokens, CompileMetrics metrics) {
-        int keywords = 0, idents = 0, literals = 0, operators = 0, comments = 0;
-        for (Token t : tokens) {
-            if (t.type() == TokenType.EOF) continue;
-            if (KEYWORD_TYPES.contains(t.type())) keywords++;
-            else if (t.type() == TokenType.IDENT) idents++;
-            else if (LITERAL_TYPES.contains(t.type())) literals++;
-            else if (OPERATOR_TYPES.contains(t.type())) operators++;
-            // comment tokens not produced by scanner
-        }
-        metrics.keywordCount = keywords;
-        metrics.identifierCount = idents;
-        metrics.literalCount = literals;
-        metrics.operatorCount = operators;
-        metrics.commentCount = comments;
-    }
 }

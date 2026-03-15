@@ -33,9 +33,11 @@ tasks.register<JavaExec>("runIDE") {
     description = "Run Herd IDE"
     mainClass.set("src.gui.HerdIDE")
     classpath = sourceSets["main"].runtimeClasspath
+    jvmArgs("--add-opens", "java.desktop/java.awt=ALL-UNNAMED")
 }
 
 dependencies {
+    implementation("com.formdev:flatlaf:3.4.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

@@ -12,21 +12,34 @@ import java.util.List;
  */
 public class SemanticAnalyzer {
     private final List<SemanticError> errors = new ArrayList<>();
+    private final List<SymbolEntry> symbolLog = new ArrayList<>();
     private final SymbolTable table = new SymbolTable();
     private int agentDepth = 0;
-    private DataTypeNode currentReturnType = null; // null = void (main or no function)
+    private DataTypeNode currentReturnType = null;
+    private boolean logEnabled = false;
 
     public static List<SemanticError> analyze(ProgramNode program) {
+        return analyzeDetailed(program).errors();
+    }
+
+    public static SemanticResult analyzeDetailed(ProgramNode program) {
         return new SemanticAnalyzer().analyzeInternal(program);
     }
 
     private static final java.util.Set<String> PRIMITIVE_TYPES =
             java.util.Set.of("int", "float", "char", "string", "bool", "void");
 
-    private List<SemanticError> analyzeInternal(ProgramNode program) {
+    private SemanticResult analyzeInternal(ProgramNode program) {
         errors.clear();
-        table.pushScope();
+        symbolLog.clear();
+        table.setOnDefine(sym -> {
+            if (!logEnabled) return;
+            symbolLog.add(new SymbolEntry(table.currentScopeName(), sym.name, sym.kind,
+                    formatSymbolType(sym), sym.declarationSpan != null ? sym.declarationSpan.line() : 0));
+        });
+        table.pushScope("global");
         defineBuiltinTypes();
+        logEnabled = true; // start logging after builtins
         // Pre-register all agent and world names so forward references resolve correctly
         for (TypeDeclNode td : program.typeDecls()) preRegisterTypeDecl(td);
         for (TypeDeclNode td : program.typeDecls()) visitTypeDecl(td);
@@ -36,7 +49,25 @@ public class SemanticAnalyzer {
         checkMain(program.main());
         if (program.main() != null) visitMain(program.main());
         table.popScope();
-        return List.copyOf(errors);
+        return new SemanticResult(List.copyOf(errors), List.copyOf(symbolLog));
+    }
+
+    private String formatSymbolType(SymbolTable.Symbol sym) {
+        return switch (sym.kind) {
+            case FUNCTION -> {
+                String ret = sym.type != null ? sym.type.baseTypeName() : "void";
+                String params = sym.paramTypes.stream()
+                        .map(p -> p.baseTypeName() + "[]".repeat(p.pointerLevel()))
+                        .collect(java.util.stream.Collectors.joining(", "));
+                yield ret + "(" + params + ")";
+            }
+            case AGENT  -> "agent";
+            case WORLD  -> "world";
+            case TYPE   -> "type";
+            default     -> sym.type != null
+                    ? sym.type.baseTypeName() + "[]".repeat(sym.type.pointerLevel())
+                    : "?";
+        };
     }
 
     private void defineBuiltinTypes() {
@@ -57,12 +88,16 @@ public class SemanticAnalyzer {
         } else if (n instanceof WorldDeclNode w) {
             if (!table.define(SymbolTable.Symbol.world(w.name(), w.location())))
                 error(w.location(), "Duplicate world name: " + w.name());
-            // Register world fields in global scope so agents can read/write them from update/zone
+            // Register world fields in global scope so agents can read/write them from update/zone.
+            // Suppress logging here — they are logged properly under "world:<name>" in visitTypeDecl.
+            boolean savedLog = logEnabled;
+            logEnabled = false;
             for (VarDeclNode f : w.fields()) {
                 for (DeclaratorNode d : f.declarators()) {
                     table.define(SymbolTable.Symbol.variable(d.name(), f.dataType(), d.location()));
                 }
             }
+            logEnabled = savedLog;
         }
     }
 
@@ -75,7 +110,7 @@ public class SemanticAnalyzer {
         }
         if (n instanceof AgentDeclNode a) {
             // Name already registered in pre-pass; just validate body
-            table.pushScope();
+            table.pushScope("agent:" + a.name());
             agentDepth++;
             for (VarDeclNode f : a.fields()) visitVarDecl(f);
             for (ZoneDeclNode z : a.zones()) visitZoneDecl(z);
@@ -86,7 +121,7 @@ public class SemanticAnalyzer {
         }
         if (n instanceof WorldDeclNode w) {
             // Name already registered in pre-pass; just validate body
-            table.pushScope();
+            table.pushScope("world:" + w.name());
             for (VarDeclNode f : w.fields()) visitVarDecl(f);
             if (w.preBlock() != null) visitBlock(w.preBlock());
             if (w.postBlock() != null) visitBlock(w.postBlock());
@@ -133,7 +168,7 @@ public class SemanticAnalyzer {
         }
         List<DataTypeNode> paramTypes = n.params().stream().map(ParamNode::dataType).toList();
         table.define(SymbolTable.Symbol.function(n.name(), n.returnType(), paramTypes, n.location()));
-        table.pushScope();
+        table.pushScope("func:" + n.name());
         for (ParamNode p : n.params()) {
             if (table.definedInCurrentScope(p.name())) error(p.location(), "Duplicate parameter: " + p.name());
             else table.define(SymbolTable.Symbol.variable(p.name(), p.dataType(), p.location()));
@@ -154,7 +189,7 @@ public class SemanticAnalyzer {
     }
 
     private void visitMain(MainFunctionNode main) {
-        table.pushScope();
+        table.pushScope("main");
         DataTypeNode prevReturn = currentReturnType;
         currentReturnType = new DataTypeNode(main.location(), "void", 0);
         visitBlock(main.body());

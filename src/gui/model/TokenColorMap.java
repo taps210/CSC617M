@@ -8,24 +8,26 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static src.gui.model.Theme.*;
+
 /**
  * Single source of truth for token colors. Used by editor syntax highlighter,
  * ScannerOutputPanel, and Analysis token panels.
  */
 public final class TokenColorMap {
-    private static final Color KEYWORD = new Color(0x0000FF);
-    private static final Color ABM_KEYWORD = new Color(0x8A2BE2);
-    private static final Color TYPE = new Color(0x008080);
-    private static final Color DECLARATION = new Color(0x00008B);
-    private static final Color IDENTIFIER = Color.BLACK;
-    private static final Color LITERAL_NUMERIC = new Color(0xCC5500);
-    private static final Color LITERAL_STRING_CHAR = new Color(0x008000);
-    private static final Color BOOLEAN_LIT = new Color(0x0000FF);
-    private static final Color NULL_LIT = new Color(0x808080);
-    private static final Color OPERATOR_COLOR = new Color(0x8B0000);
-    private static final Color PUNCTUATION = new Color(0x444444);
-    private static final Color COMMENT = new Color(0x6A9955);
-    private static final Color ERROR = Color.RED;
+    private static final Color KEYWORD           = TOKEN_KEYWORD;
+    private static final Color ABM_KEYWORD       = TOKEN_ABM_KEYWORD;
+    private static final Color TYPE              = TOKEN_TYPE;
+    private static final Color DECLARATION       = TOKEN_DECLARATION;
+    private static final Color IDENTIFIER        = TOKEN_IDENTIFIER;
+    private static final Color LITERAL_NUMERIC   = TOKEN_LITERAL_NUMERIC;
+    private static final Color LITERAL_STRING_CHAR = TOKEN_LITERAL_STRING;
+    private static final Color BOOLEAN_LIT       = TOKEN_BOOLEAN;
+    private static final Color NULL_LIT          = TOKEN_NULL;
+    private static final Color OPERATOR_COLOR    = TOKEN_OPERATOR;
+    private static final Color PUNCTUATION       = TOKEN_PUNCTUATION;
+    private static final Color COMMENT           = TOKEN_COMMENT;
+    private static final Color ERROR             = TOKEN_ERROR;
 
     private static final Set<TokenType> CONTROL_KEYWORDS = Set.of(
             TokenType.IF, TokenType.ELSE, TokenType.WHILE, TokenType.FOR, TokenType.REPEAT, TokenType.UNTIL,

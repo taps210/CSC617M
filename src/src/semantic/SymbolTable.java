@@ -7,9 +7,13 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Scope stack for name resolution. Supports define(name, kind, type) and resolve(name).
+ * Each scope can carry an optional label (e.g. "global", "func:foo", "agent:Bee").
+ * Unnamed scopes (plain pushScope()) inherit the parent label, so local variables
+ * inside a function correctly report the function's scope name.
  */
 public class SymbolTable {
     public enum Kind { VARIABLE, CONSTANT, TYPE, FUNCTION, AGENT, WORLD }
@@ -19,7 +23,7 @@ public class SymbolTable {
         public final Kind kind;
         public final DataTypeNode type;
         public final SourceSpan declarationSpan;
-        /** For functions: param types; for agents: unused. */
+        /** For functions: param types; for others: empty. */
         public final List<DataTypeNode> paramTypes;
 
         public Symbol(String name, Kind kind, DataTypeNode type, SourceSpan declarationSpan, List<DataTypeNode> paramTypes) {
@@ -50,14 +54,33 @@ public class SymbolTable {
         }
     }
 
-    private final Deque<Map<String, Symbol>> scopes = new ArrayDeque<>();
+    private final Deque<Map<String, Symbol>> scopes      = new ArrayDeque<>();
+    private final Deque<String>              scopeLabels = new ArrayDeque<>();
+    private Consumer<Symbol> onDefine;
 
+    /** Register a listener that fires on every successful define(). */
+    public void setOnDefine(Consumer<Symbol> listener) { this.onDefine = listener; }
+
+    /** Push an unnamed scope — inherits the parent scope's label. */
     public void pushScope() {
+        String inherited = scopeLabels.isEmpty() ? "global" : scopeLabels.peek();
+        pushScope(inherited);
+    }
+
+    /** Push a named scope (e.g. "func:foo", "agent:Bee", "global"). */
+    public void pushScope(String label) {
         scopes.push(new HashMap<>());
+        scopeLabels.push(label);
     }
 
     public void popScope() {
-        if (!scopes.isEmpty()) scopes.pop();
+        if (!scopes.isEmpty())      scopes.pop();
+        if (!scopeLabels.isEmpty()) scopeLabels.pop();
+    }
+
+    /** Returns the label of the innermost scope, or "global" if the stack is empty. */
+    public String currentScopeName() {
+        return scopeLabels.isEmpty() ? "global" : scopeLabels.peek();
     }
 
     /** Define a symbol in the current scope. Returns false if already defined in this scope (duplicate). */
@@ -66,6 +89,7 @@ public class SymbolTable {
         Map<String, Symbol> current = scopes.peek();
         if (current.containsKey(sym.name)) return false;
         current.put(sym.name, sym);
+        if (onDefine != null) onDefine.accept(sym);
         return true;
     }
 
