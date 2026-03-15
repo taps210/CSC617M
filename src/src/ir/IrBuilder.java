@@ -22,7 +22,8 @@ public final class IrBuilder {
     private static final String FN_PREFIX_WORLD  = "world_";
     private static final String FN_SUFFIX_PRE    = "_pre";
     private static final String FN_SUFFIX_POST   = "_post";
-    public  static final String FN_PREFIX_ZONE   = "zone_";
+    public  static final String FN_PREFIX_ZONE         = "zone_";
+    public  static final String FN_PREFIX_AGENTMETHOD  = "agentmethod_";
 
     private final List<Instr> instructions = new ArrayList<>();
     private int tempCounter = 0;
@@ -31,6 +32,10 @@ public final class IrBuilder {
     private final Deque<String[]> loopLabels = new LinkedList<>();
     /** Const name → literal value, for inline ConstOperand injection. */
     private final Map<String, Object> constValues;
+    /** Name of the agent currently being compiled (null outside agent context). */
+    private String currentAgentName = null;
+    /** Simple method names of the current agent — used to qualify calls from update/method bodies. */
+    private java.util.Set<String> currentAgentMethodNames = java.util.Set.of();
 
     private IrBuilder(Map<String, Object> constValues) {
         this.constValues = constValues;
@@ -54,11 +59,29 @@ public final class IrBuilder {
             out.add(new FunctionIR("main", List.of(), new ArrayList<>(b.instructions)));
         }
         for (var td : program.typeDecls()) {
-            if (td instanceof AgentDeclNode a && a.updateBlock() != null) {
-                String updateName = FN_PREFIX_UPDATE + a.name();
-                IrBuilder b = new IrBuilder(constValues);
-                b.buildFunctionBody(updateName, a.updateBlock());
-                out.add(new FunctionIR(updateName, List.of(), new ArrayList<>(b.instructions)));
+            if (td instanceof AgentDeclNode a) {
+                java.util.Set<String> methodNames = a.methods().stream()
+                        .map(FuncDeclNode::name)
+                        .collect(java.util.stream.Collectors.toSet());
+                // Compile update block with agent context so method calls get qualified
+                if (a.updateBlock() != null) {
+                    String updateName = FN_PREFIX_UPDATE + a.name();
+                    IrBuilder b = new IrBuilder(constValues);
+                    b.currentAgentName = a.name();
+                    b.currentAgentMethodNames = methodNames;
+                    b.buildFunctionBody(updateName, a.updateBlock());
+                    out.add(new FunctionIR(updateName, List.of(), new ArrayList<>(b.instructions)));
+                }
+                // Compile agent methods
+                for (FuncDeclNode m : a.methods()) {
+                    String methodIrName = FN_PREFIX_AGENTMETHOD + a.name() + "_" + m.name();
+                    List<String> paramNames = m.params().stream().map(ParamNode::name).toList();
+                    IrBuilder b = new IrBuilder(constValues);
+                    b.currentAgentName = a.name();
+                    b.currentAgentMethodNames = methodNames;
+                    b.buildFunctionBody(methodIrName, m.body());
+                    out.add(new FunctionIR(methodIrName, paramNames, new ArrayList<>(b.instructions)));
+                }
             }
             if (td instanceof AgentDeclNode a) {
                 for (ZoneDeclNode z : a.zones()) {
@@ -140,10 +163,9 @@ public final class IrBuilder {
             return;
         }
         if (s instanceof CallStmtNode n) {
-            for (ExprNode a : n.args()) {
-                emit(new Instr.ParamInstr(genExpr(a)));
-            }
-            emit(new Instr.CallInstr(n.name(), null));
+            String funcName = qualifyIfAgentMethod(n.name());
+            for (ExprNode a : n.args()) emit(new Instr.ParamInstr(genExpr(a)));
+            emit(new Instr.CallInstr(funcName, null));
             return;
         }
         if (s instanceof IfStmtNode n) {
@@ -359,9 +381,24 @@ public final class IrBuilder {
             return Operand.temp(result);
         }
         if (e instanceof CallExprNode n) {
+            String funcName = qualifyIfAgentMethod(n.name());
             for (ExprNode a : n.args()) emit(new Instr.ParamInstr(genExpr(a)));
             String result = nextTemp();
-            emit(new Instr.CallInstr(n.name(), result));
+            emit(new Instr.CallInstr(funcName, result));
+            return Operand.temp(result);
+        }
+        if (e instanceof MethodCallExprNode n) {
+            Operand targetOp = genExpr(n.target());
+            String targetVar;
+            if (targetOp instanceof Operand.VarOperand v) {
+                targetVar = v.name();
+            } else {
+                targetVar = nextTemp();
+                emit(new Instr.AssignCopy(targetVar, targetOp));
+            }
+            for (ExprNode a : n.args()) emit(new Instr.ParamInstr(genExpr(a)));
+            String result = nextTemp();
+            emit(new Instr.AgentMethodCallInstr(targetVar, n.methodName(), result));
             return Operand.temp(result);
         }
         if (e instanceof AbmCallExprNode n) {
@@ -386,5 +423,11 @@ public final class IrBuilder {
         String t = nextTemp();
         emit(new Instr.AssignConst(t, 0));
         return Operand.temp(t);
+    }
+
+    private String qualifyIfAgentMethod(String name) {
+        return (currentAgentName != null && currentAgentMethodNames.contains(name))
+                ? FN_PREFIX_AGENTMETHOD + currentAgentName + "_" + name
+                : name;
     }
 }

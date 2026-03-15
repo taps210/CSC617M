@@ -1,0 +1,71 @@
+// Example08_AgentMethods.hd
+//
+// Demonstrates:
+//   1. Methods declared inside an agent body (after the update block)
+//   2. Calling those methods from within the agent's update block
+//   3. Calling a neighbor's method via neighbor.method() syntax
+//
+// Setup:
+//   - Counter agents each have a 'value' and a 'delta' (increment amount).
+//   - increment() adds delta to value; getDouble() returns value * 2.
+//   - A Printer agent finds its Counter neighbors and prints their doubled values.
+//
+// Run: ./gradlew runIDE  (paste into the IDE and press Ctrl+Enter)
+
+agent Counter {
+    int value = 0;
+    int delta = 1;
+
+    update {
+        increment();
+    }
+
+    int getDouble() {
+        return value * 2;
+    }
+
+    void increment() {
+        value = value + delta;
+    }
+}
+
+agent Printer {
+    int x, y, i, doubled;
+    Counter nearby[];
+
+    update {
+        nearby = neighbors(self, 100);
+        i = 0;
+        repeat {
+            doubled = nearby[i].getDouble();
+            print("  [Printer] Counter", i, "doubled value =", doubled);
+            i = i + 1;
+        } until (i >= nearby.length);
+    }
+}
+
+world TestWorld {
+    bool ready = false;
+
+    pre {
+        if (!ready) {
+            spawn Counter(0, 3);
+            spawn Counter(10, 2);
+            spawn Printer(0, 0);
+            ready = true;
+        }
+    }
+
+    post {}
+}
+
+void main() {
+    int steps = 0;
+    print("=== Agent Methods Test ===");
+    repeat {
+        step();
+        steps = steps + 1;
+        print("-- step", steps, "--");
+    } until (steps >= 3);
+    print("=== Done ===");
+}

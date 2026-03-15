@@ -91,7 +91,8 @@ public final class ParseTreeToAst {
         List<VarDeclNode> fields = toFieldDeclList(child(c, 1));
         List<ZoneDeclNode> zones = toZoneDeclList(child(c, 2));
         BlockNode updateBlock = toBlock(child(c, 3));
-        return new AgentDeclNode(span(n), name, fields, zones, updateBlock);
+        List<FuncDeclNode> methods = toFuncDeclList(child(c, 4));
+        return new AgentDeclNode(span(n), name, fields, zones, updateBlock, methods);
     }
 
     private static List<ZoneDeclNode> toZoneDeclList(ParseTreeNode n) {
@@ -463,8 +464,15 @@ public final class ParseTreeToAst {
             if (op.isTerminal()) {
                 if (op.token().type() == TokenType.LPAREN) {
                     List<ExprNode> args = i + 1 < c.size() ? toExprList(c.get(i + 1)) : List.of();
-                    String name = e instanceof IdentExprNode ident ? ident.name() : "";
-                    e = new CallExprNode(span(n), name, args);
+                    if (e instanceof IdentExprNode ident) {
+                        e = new CallExprNode(e.location(), ident.name(), args);
+                    } else if (e instanceof BinaryExprNode bin && ".".equals(bin.op())
+                            && bin.right() instanceof IdentExprNode method) {
+                        // obj.method(args) — method call on an agent reference
+                        e = new MethodCallExprNode(bin.left().location(), bin.left(), method.name(), args);
+                    } else {
+                        e = new CallExprNode(e.location(), "", args);
+                    }
                     i++;
                 } else if (op.token().type() == TokenType.LBRACKET) {
                     ExprNode index = i + 1 < c.size() ? toExpr(c.get(i + 1)) : null;

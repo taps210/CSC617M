@@ -1,0 +1,102 @@
+// Example07: Functions used with ABM constructs.
+//
+// Demonstrates:
+//   1. A global helper function called from inside an agent's update block.
+//   2. A global helper function called from the world's pre/post blocks.
+//   3. Functions with return values used to drive agent behavior.
+//
+// Limitations (by design):
+//   - Functions cannot be declared inside an agent or world body.
+//   - Global variables are NOT shared across function calls (each call gets its own store).
+//     Pass values via parameters and use return values instead.
+//
+// Program declaration order (required by the parser):
+//   type decls (agents/worlds) → const → global vars → functions → main
+//
+// Run: ./gradlew runIDE  (paste into the IDE and press Ctrl+Enter)
+
+// ---- Agents ----
+
+// Worker earns income each step but pays tax; speed is clamped.
+agent Worker {
+    int x, y;
+    int income = 0;
+    int speed  = 0;
+
+    update {
+        // Call global function to clamp speed between 0 and 5
+        speed = clamp(speed + 1, 0, 5);
+
+        // Call global function to compute taxed income earned this step
+        income = income + applyTax(10);
+
+        // Use a returning bool function to conditionally print
+        if (isOver(income, 40)) {
+            print("  [Worker] high earner: income =", income, "speed =", speed);
+        }
+    }
+}
+
+// ---- World ----
+
+world Economy {
+    int width  = 10;
+    int height = 10;
+    bool ready = false;
+    int  tick  = 0;
+
+    pre {
+        if (!ready) {
+            spawn Worker(rand(0, 10), rand(0, 10));
+            spawn Worker(rand(0, 10), rand(0, 10));
+            spawn Worker(rand(0, 10), rand(0, 10));
+            ready = true;
+            print("[World.pre] Spawned 3 Workers");
+        }
+
+        // World pre block can also use global functions
+        tick = clamp(tick, 0, 9999);
+    }
+
+    post {
+        tick = tick + 1;
+        if (tick % 5 == 0) {
+            print("[World.post] tick =", tick);
+        }
+    }
+}
+
+// ---- Global helper functions (must come after type decls, before main) ----
+
+// Clamps an integer between [lo, hi].
+int clamp(int v, int lo, int hi) {
+    if (v < lo) { return lo; }
+    if (v > hi) { return hi; }
+    return v;
+}
+
+// Returns the taxed value: amount minus a flat 10% tax (integer division).
+int applyTax(int amount) {
+    return amount - (amount / 10);
+}
+
+// Returns true if value exceeds threshold.
+bool isOver(int value, int threshold) {
+    return value > threshold;
+}
+
+// ---- Main ----
+
+void main() {
+    int steps = 0;
+    print("=== Functions + ABM test ===");
+
+    // Run 10 steps; Workers ramp up speed (clamped at 5) and accumulate taxed income.
+    repeat {
+        step();
+        steps = steps + 1;
+    } until (steps >= 10);
+
+    print("=== Done after", steps, "steps ===");
+    print("applyTax(10) = 9 per step, over 10 steps = 90 income per worker");
+}

@@ -30,7 +30,8 @@ public final class IrInterpreter {
     private static final String FN_PREFIX_WORLD  = "world_";
     private static final String FN_SUFFIX_PRE    = "_pre";
     private static final String FN_SUFFIX_POST   = "_post";
-    private static final String FN_PREFIX_ZONE   = "zone_";
+    private static final String FN_PREFIX_ZONE         = "zone_";
+    private static final String FN_PREFIX_AGENTMETHOD  = "agentmethod_";
 
     private final Map<String, FunctionIR> functions = new HashMap<>();
     private final Ast.ProgramNode program;
@@ -202,7 +203,8 @@ public final class IrInterpreter {
         if (instr instanceof Instr.DestroyInstr d)      return executeDestroy(d);
         if (instr instanceof Instr.NeighborsInstr n)    return executeNeighbors(n);
         if (instr instanceof Instr.AbmCallInstr a)      return executeAbmCall(a);
-        if (instr instanceof Instr.ZoneEnterInstr z)    return executeZoneEnter(z);
+        if (instr instanceof Instr.ZoneEnterInstr z)       return executeZoneEnter(z);
+        if (instr instanceof Instr.AgentMethodCallInstr a)  return executeAgentMethodCall(a);
         return true;
     }
 
@@ -277,13 +279,51 @@ public final class IrInterpreter {
         List<Object> args = new ArrayList<>(paramList);
         paramList.clear();
         if (callee != null) {
-            runFunction(callee, args);
+            // Agent methods called from within the same agent's update/method share the agent store
+            if (c.funcName().startsWith(FN_PREFIX_AGENTMETHOD) && currentAgent != null) {
+                // Bind params into agent store before running, restore after
+                Map<String, Object> agentStore = currentAgent.store;
+                for (int i = 0; i < callee.paramNames().size() && i < args.size(); i++) {
+                    agentStore.put(callee.paramNames().get(i), args.get(i));
+                }
+                runFunction(callee, args, agentStore);
+            } else {
+                runFunction(callee, args);
+            }
             Object ret = returnValue;
             returnValue = null;
             if (c.result() != null && ret != null) store.put(c.result(), ret);
         } else if (FN_ASSERT_FAIL.equals(c.funcName())) {
             throw new RuntimeException("Assertion failed");
         }
+        return true;
+    }
+
+    private boolean executeAgentMethodCall(Instr.AgentMethodCallInstr a) {
+        Object handleObj = store.get(a.handle());
+        List<Object> args = new ArrayList<>(paramList);
+        paramList.clear();
+        if (!(handleObj instanceof AgentHandle handle)) {
+            if (a.result() != null) store.put(a.result(), 0);
+            return true;
+        }
+        String irName = FN_PREFIX_AGENTMETHOD + handle.typeName + "_" + a.methodName();
+        FunctionIR callee = functions.get(irName);
+        if (callee == null) {
+            if (a.result() != null) store.put(a.result(), 0);
+            return true;
+        }
+        // Bind params into the neighbor's store, then run with that store
+        for (int i = 0; i < callee.paramNames().size() && i < args.size(); i++) {
+            handle.store.put(callee.paramNames().get(i), args.get(i));
+        }
+        AgentHandle prevAgent = currentAgent;
+        currentAgent = handle;
+        runFunction(callee, args, handle.store);
+        currentAgent = prevAgent;
+        Object ret = returnValue;
+        returnValue = null;
+        if (a.result() != null && ret != null) store.put(a.result(), ret);
         return true;
     }
 

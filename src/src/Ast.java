@@ -19,7 +19,7 @@ public final class Ast {
 
     // --- Expression hierarchy ---
     public sealed interface ExprNode
-            permits BinaryExprNode, UnaryExprNode, CallExprNode, LiteralExprNode,
+            permits BinaryExprNode, UnaryExprNode, CallExprNode, MethodCallExprNode, LiteralExprNode,
             IdentExprNode, SelfFieldExprNode, SelfExprNode, NullExprNode, ParenExprNode,
             LvalueExprNode, AbmCallExprNode, PlaceholderExprNode, TernaryExprNode {
         SourceSpan location();
@@ -28,6 +28,8 @@ public final class Ast {
     public record BinaryExprNode(SourceSpan location, ExprNode left, String op, ExprNode right) implements ExprNode {}
     public record UnaryExprNode(SourceSpan location, String op, ExprNode operand) implements ExprNode {}
     public record CallExprNode(SourceSpan location, String name, List<ExprNode> args) implements ExprNode {}
+    /** Call a method on an agent reference: target.methodName(args). */
+    public record MethodCallExprNode(SourceSpan location, ExprNode target, String methodName, List<ExprNode> args) implements ExprNode {}
     public record LiteralExprNode(SourceSpan location, Object value) implements ExprNode {}
     public record IdentExprNode(SourceSpan location, String name) implements ExprNode {}
     public record SelfFieldExprNode(SourceSpan location, String fieldName) implements ExprNode {}
@@ -90,7 +92,7 @@ public final class Ast {
     public sealed interface TypeDeclNode permits TypeAliasNode, AgentDeclNode, WorldDeclNode {}
     public record TypeAliasNode(SourceSpan location, String typeName, RecordTypeNode recordType) implements TypeDeclNode {}
     public record ZoneDeclNode(SourceSpan location, String name, ExprNode condition, String targetIdent, BlockNode block) {}
-    public record AgentDeclNode(SourceSpan location, String name, List<VarDeclNode> fields, List<ZoneDeclNode> zones, BlockNode updateBlock) implements TypeDeclNode {}
+    public record AgentDeclNode(SourceSpan location, String name, List<VarDeclNode> fields, List<ZoneDeclNode> zones, BlockNode updateBlock, List<FuncDeclNode> methods) implements TypeDeclNode {}
     public record WorldDeclNode(SourceSpan location, String name, List<VarDeclNode> fields, BlockNode preBlock, BlockNode postBlock) implements TypeDeclNode {}
 
     public record FuncDeclNode(SourceSpan location, String name, DataTypeNode returnType, List<ParamNode> params, BlockNode body) {}

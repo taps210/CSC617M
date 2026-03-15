@@ -265,12 +265,14 @@ public final class Parser {
         ParseTreeNode fields = fieldDeclList();
         ParseTreeNode zones = zoneDeclList();
         ParseTreeNode updateBlock = updateBlock();
+        ParseTreeNode methods = funcDeclList();  // optional method declarations after update block
         consume(TokenType.RBRACE, "Expected '}' after agent body.");
         List<ParseTreeNode> children = new ArrayList<>();
         children.add(terminal(nameTok));
         children.add(fields);
         children.add(zones);
         children.add(updateBlock);
+        children.add(methods);
         return ParseTreeNode.of(ParseTreeKind.AGENT_DECL, children, t);
     }
 

@@ -11,7 +11,7 @@ public sealed interface Instr
         Instr.ReadInstr, Instr.PrintInstr,
         Instr.AllocArrayInstr, Instr.ArrayStoreInstr,
         Instr.SpawnInstr, Instr.MoveInstr, Instr.StepInstr, Instr.DestroyInstr, Instr.NeighborsInstr, Instr.AbmCallInstr,
-        Instr.ZoneEnterInstr {
+        Instr.ZoneEnterInstr, Instr.AgentMethodCallInstr {
 
     /** Label (target for goto / if-goto). */
     record LabelInstr(String label) implements Instr {}
@@ -78,4 +78,7 @@ public sealed interface Instr
 
     /** Zone proximity guard: if no agents of targetType within radius, goto skipLabel. */
     record ZoneEnterInstr(Operand radius, String targetType, String skipLabel) implements Instr {}
+
+    /** result = handle.methodName(params); dispatches dynamically using the handle's agent type. */
+    record AgentMethodCallInstr(String handle, String methodName, String result) implements Instr {}
 }

@@ -46,6 +46,7 @@ public final class IrFormatter {
         if (i instanceof Instr.NeighborsInstr n) return (n.result() != null ? n.result() + " = " : "") + "neighbors(" + n.args().stream().map(IrFormatter::formatOperand).collect(Collectors.joining(", ")) + ")";
         if (i instanceof Instr.AbmCallInstr a) return (a.result() != null ? a.result() + " = " : "") + "abmcall " + a.name() + "(" + a.args().stream().map(IrFormatter::formatOperand).collect(Collectors.joining(", ")) + ")";
         if (i instanceof Instr.ZoneEnterInstr z) return "zone_enter " + z.targetType() + " radius=" + formatOperand(z.radius()) + " skip=" + z.skipLabel();
+        if (i instanceof Instr.AgentMethodCallInstr a) return (a.result() != null ? a.result() + " = " : "") + "agentmethod " + a.handle() + "." + a.methodName() + "()";
         return "?";
     }
 

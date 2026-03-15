@@ -15,6 +15,8 @@ public class SemanticAnalyzer {
     private final List<SymbolEntry> symbolLog = new ArrayList<>();
     private final SymbolTable table = new SymbolTable();
     private int agentDepth = 0;
+    /** agentName → (methodName → Symbol) — for resolving MethodCallExprNode. */
+    private final java.util.Map<String, java.util.Map<String, SymbolTable.Symbol>> agentMethodTable = new java.util.HashMap<>();
     private DataTypeNode currentReturnType = null;
     private boolean logEnabled = false;
 
@@ -42,6 +44,8 @@ public class SemanticAnalyzer {
         logEnabled = true; // start logging after builtins
         // Pre-register all agent and world names so forward references resolve correctly
         for (TypeDeclNode td : program.typeDecls()) preRegisterTypeDecl(td);
+        // Pre-register all function signatures so agents/world bodies can call them
+        for (FuncDeclNode f : program.funcDecls()) preRegisterFuncDecl(f);
         for (TypeDeclNode td : program.typeDecls()) visitTypeDecl(td);
         for (ConstDeclNode c : program.constDecls()) visitConstDecl(c);
         for (VarDeclNode v : program.globalVarDecls()) visitVarDecl(v);
@@ -80,6 +84,16 @@ public class SemanticAnalyzer {
         table.define(SymbolTable.Symbol.type("void", new DataTypeNode(zero, "void", 0), zero));
     }
 
+    /** Pass 1b: register function signatures so agent/world bodies can call them before funcDecl bodies are validated. */
+    private void preRegisterFuncDecl(FuncDeclNode n) {
+        if (table.definedInCurrentScope(n.name())) {
+            error(n.location(), "Duplicate function: " + n.name());
+            return;
+        }
+        List<DataTypeNode> paramTypes = n.params().stream().map(ParamNode::dataType).toList();
+        table.define(SymbolTable.Symbol.function(n.name(), n.returnType(), paramTypes, n.location()));
+    }
+
     /** Pass 1: register agent and world names so forward references resolve during body validation. */
     private void preRegisterTypeDecl(TypeDeclNode n) {
         if (n instanceof AgentDeclNode a) {
@@ -113,8 +127,23 @@ public class SemanticAnalyzer {
             table.pushScope("agent:" + a.name());
             agentDepth++;
             for (VarDeclNode f : a.fields()) visitVarDecl(f);
+            // Register method signatures in agent scope so the update block and other methods can call them
+            java.util.Map<String, SymbolTable.Symbol> methodMap = new java.util.HashMap<>();
+            for (FuncDeclNode m : a.methods()) {
+                if (table.definedInCurrentScope(m.name())) {
+                    error(m.location(), "Duplicate method '" + m.name() + "' in agent " + a.name());
+                } else {
+                    List<DataTypeNode> paramTypes = m.params().stream().map(ParamNode::dataType).toList();
+                    SymbolTable.Symbol sym = SymbolTable.Symbol.function(m.name(), m.returnType(), paramTypes, m.location());
+                    table.define(sym);
+                    methodMap.put(m.name(), sym);
+                }
+            }
+            agentMethodTable.put(a.name(), methodMap);
             for (ZoneDeclNode z : a.zones()) visitZoneDecl(z);
             visitBlock(a.updateBlock());
+            // Validate method bodies (agent fields + other methods are in scope)
+            for (FuncDeclNode m : a.methods()) visitAgentMethod(m);
             agentDepth--;
             table.popScope();
             return;
@@ -161,13 +190,27 @@ public class SemanticAnalyzer {
         }
     }
 
+    /** Validates an agent method body. Called while agent scope is still on the stack. */
+    private void visitAgentMethod(FuncDeclNode n) {
+        table.pushScope("func:" + n.name());
+        for (ParamNode p : n.params()) {
+            if (table.definedInCurrentScope(p.name())) error(p.location(), "Duplicate parameter: " + p.name());
+            else table.define(SymbolTable.Symbol.variable(p.name(), p.dataType(), p.location()));
+        }
+        DataTypeNode prevReturn = currentReturnType;
+        currentReturnType = n.returnType();
+        visitBlock(n.body());
+        currentReturnType = prevReturn;
+        table.popScope();
+    }
+
     private void visitFuncDecl(FuncDeclNode n) {
-        if (table.definedInCurrentScope(n.name())) {
-            error(n.location(), "Duplicate function: " + n.name());
+        // Signature already registered by preRegisterFuncDecl; duplicate errors reported there.
+        // Only validate the body here.
+        if (!table.definedInCurrentScope(n.name())) {
+            // Fallback: wasn't pre-registered (e.g. duplicate was skipped), nothing to validate.
             return;
         }
-        List<DataTypeNode> paramTypes = n.params().stream().map(ParamNode::dataType).toList();
-        table.define(SymbolTable.Symbol.function(n.name(), n.returnType(), paramTypes, n.location()));
         table.pushScope("func:" + n.name());
         for (ParamNode p : n.params()) {
             if (table.definedInCurrentScope(p.name())) error(p.location(), "Duplicate parameter: " + p.name());
@@ -317,6 +360,20 @@ public class SemanticAnalyzer {
             for (ExprNode a : n.args()) visitExpr(a);
             return;
         }
+        if (e instanceof MethodCallExprNode n) {
+            visitExpr(n.target());
+            DataTypeNode targetType = typeOfExpr(n.target());
+            java.util.Map<String, SymbolTable.Symbol> methods = agentMethodTable.get(targetType.baseTypeName());
+            if (methods == null) {
+                error(n.location(), "Type '" + targetType.baseTypeName() + "' has no methods");
+            } else {
+                SymbolTable.Symbol sym = methods.get(n.methodName());
+                if (sym == null) error(n.location(), "Undefined method '" + n.methodName() + "' on " + targetType.baseTypeName());
+                else if (sym.paramTypes.size() != n.args().size()) error(n.location(), "Argument count mismatch for method " + n.methodName());
+            }
+            for (ExprNode a : n.args()) visitExpr(a);
+            return;
+        }
         if (e instanceof LvalueExprNode n) {
             if (n.isSelfField() && agentDepth == 0) error(n.location(), "'self' is only valid inside an agent body");
             else if (!n.isSelfField() && table.resolve(n.baseName()) == null) error(n.location(), "Undefined identifier: " + n.baseName());
@@ -355,11 +412,26 @@ public class SemanticAnalyzer {
             return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "int", 0);
         }
         if (e instanceof SelfFieldExprNode n) return new DataTypeNode(n.location(), "int", 0);
+        if (e instanceof MethodCallExprNode n) {
+            DataTypeNode targetType = typeOfExpr(n.target());
+            java.util.Map<String, SymbolTable.Symbol> methods = agentMethodTable.get(targetType.baseTypeName());
+            if (methods != null) {
+                SymbolTable.Symbol sym = methods.get(n.methodName());
+                if (sym != null && sym.type != null) return sym.type;
+            }
+            return new DataTypeNode(n.location(), "void", 0);
+        }
         if (e instanceof CallExprNode n) {
             SymbolTable.Symbol s = table.resolve(n.name());
             return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "void", 0);
         }
-        if (e instanceof BinaryExprNode bn) return typeOfExpr(bn.left());
+        if (e instanceof BinaryExprNode bn) {
+            switch (bn.op()) {
+                case ">", "<", ">=", "<=", "==", "!=", "&&", "||":
+                    return new DataTypeNode(bn.location(), "bool", 0);
+            }
+            return typeOfExpr(bn.left());
+        }
         if (e instanceof UnaryExprNode un) return typeOfExpr(un.operand());
         if (e instanceof ParenExprNode p) return typeOfExpr(p.inner());
         if (e instanceof TernaryExprNode t) return typeOfExpr(t.thenExpr());
