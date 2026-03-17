@@ -1,0 +1,43 @@
+// Expected: Multiple semantic errors in one run (Semantic tab + Errors tab)
+// Targets rubric semantic errors:
+// 1) Undeclared variable
+// 2) Type mismatch
+// 3) Multiply-defined variable
+// 4) Constant reassignment
+// 5) Cardinality/ordinality: function parameters (count + type/order)
+
+const C = 10;
+
+int id(int x) {
+    return x;
+}
+
+int add2(int a, int b) {
+    return a + b;
+}
+
+void main() {
+    // Multiply-defined variable
+    int a;
+    int a;
+
+    int y;
+
+    // Undeclared variable
+    b = 1;
+
+    // Type mismatch assignment (bool -> int)
+    a = true;
+
+    // Constant reassignment
+    C = 11;
+
+    // Param issues
+    y = add2(1);        // wrong arg count
+    y = add2(true, 2);  // wrong arg type/order
+
+    // Call expression type mismatch
+    y = id(false);
+
+    print("should not matter", y);
+}

@@ -1,0 +1,7 @@
+// Expected: Semantic OK, then runtime error due to failed assert.
+
+void main() {
+    print("About to fail assert...");
+    assert(false);
+    print("unreachable");
+}

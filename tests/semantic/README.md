@@ -10,3 +10,9 @@
    - Failing tests should show semantic errors (also listed in the **Errors** tab).
 
 These files are meant to validate the semantic analyzer’s checks (name resolution, duplicates, context rules like `self`/`move`, method existence, and return types).
+
+## Rubric mapping (quick demos)
+
+- Undeclared variable / identifier: `02_err_undefined_identifier.hd`
+- Multiply-defined variable: `03_err_duplicate_variable.hd`
+- Type mismatch + const reassignment + parameter mismatch: `tests/rubric/11_semantic_errors_pack.hd`

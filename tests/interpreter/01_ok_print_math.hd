@@ -1,0 +1,21 @@
+// Expected: runs successfully and prints computed values in the Output tab.
+
+int add(int a, int b) {
+    return a + b;
+}
+
+void main() {
+    int x = 2;
+    int y = 3;
+    int z;
+    int i = 0;
+
+    z = add(x, y);
+    print("x=", x, " y=", y, " add(x,y)=", z);
+
+    // Loop test
+    repeat {
+        print("i=", i, " i*i=", i * i);
+        i = i + 1;
+    } until (i >= 4);
+}

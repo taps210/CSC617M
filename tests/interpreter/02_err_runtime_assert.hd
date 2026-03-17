@@ -1,0 +1,7 @@
+// Expected: semantic OK, but runtime error in Output/Errors due to failed assert.
+
+void main() {
+    print("About to assert(false)...");
+    assert(false);
+    print("You should not see this line.");
+}

@@ -1,0 +1,82 @@
+// Expected: Semantic OK + runs successfully (Output tab shows prints)
+// Covers rubric items:
+// - variable declarations (int/float/bool/string/char)
+// - const declaration (literal const)
+// - assignment
+// - simple + complex math expr (nested, function calls)
+// - boolean expressions (relational + logical)
+// - conditional statements (if/else)
+// - loops: while, for, repeat-until
+// - arrays (fixed size) + indexing
+// - functions: declaration/calling/variable scope
+// - recursion (factorial)
+// - nested statements
+
+const MSG = "Herd demo";
+const N0 = 5;
+
+int square(int x) {
+    return x * x;
+}
+
+int fact(int n) {
+    if (n <= 1) { return 1; }
+    return n * fact(n - 1);
+}
+
+void main() {
+    // Decls must come before statements in a block
+    int i = 0;
+    int s = 0;
+    int n = N0;
+    int f;
+    int t = 0;
+    bool ok;
+    float xf = 2.5;
+    char c = 'A';
+    string name = MSG;
+    int arr[5];
+
+    print("===", name, "===", " c=", c, " xf=", xf);
+
+    // Array init using for-loop
+    for (int k = 0; k < 5; k = k + 1) {
+        arr[k] = square(k) + 1;
+    }
+
+    // While loop (event-controlled)
+    while (i < 5) {
+        s = s + arr[i];
+        i = i + 1;
+    }
+
+    // Boolean expressions (relational + logical)
+    ok = (s > 0) && !(s == 0) || (n < 0);
+    if (ok) {
+        print("sum(arr)=", s, " ok=", ok);
+    } else {
+        print("unexpected: ok was false");
+    }
+
+    // Recursion
+    f = fact(n);
+    print("fact(", n, ")=", f);
+
+    // Repeat-until (do-while style)
+    repeat {
+        t = t + 1;
+    } until (t >= 3);
+    print("repeat-until t=", t);
+
+    // Nested statements
+    if (f > 0) {
+        for (int j = 0; j < 2; j = j + 1) {
+            if (j == 1) {
+                print("nested ok j=", j);
+            }
+        }
+    }
+
+    assert(f > 0);
+    print("=== done ===");
+}

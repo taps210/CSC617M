@@ -252,8 +252,29 @@ public class SemanticAnalyzer {
         if (s instanceof AssignStmtNode n) {
             visitExpr(n.lvalue());
             visitExpr(n.value());
-            DataTypeNode valueType = typeOfExpr(n.value());
+
+            // Disallow reassigning constants (rubric: const reassignment)
             DataTypeNode lvalueType = typeOfLvalue(n.lvalue());
+            if (n.lvalue() instanceof IdentExprNode id) {
+                SymbolTable.Symbol sym = table.resolve(id.name());
+                if (sym != null && sym.kind == SymbolTable.Kind.CONSTANT) {
+                    error(n.location(), "Constant reassignment: " + id.name());
+                }
+            } else if (n.lvalue() instanceof LvalueExprNode lv && !lv.isSelfField()) {
+                SymbolTable.Symbol sym = table.resolve(lv.baseName());
+                if (sym != null && sym.kind == SymbolTable.Kind.CONSTANT) {
+                    error(n.location(), "Constant reassignment: " + lv.baseName());
+                }
+            }
+
+            DataTypeNode valueType = typeOfExpr(n.value());
+
+            // Type checking for assignments (rubric: type mismatch)
+            if (lvalueType != null && valueType != null && !typesCompatible(lvalueType, valueType)) {
+                error(n.location(), "Type mismatch in assignment: cannot assign "
+                        + formatType(valueType) + " to " + formatType(lvalueType));
+            }
+
             if (lvalueType != null && "agent_list".equals(valueType.baseTypeName())) {
                 String base = lvalueType.baseTypeName();
                 if ("int".equals(base) || "float".equals(base) || "char".equals(base) || "string".equals(base) || "bool".equals(base) || "void".equals(base)) {
@@ -267,7 +288,18 @@ public class SemanticAnalyzer {
             if (sym == null) error(n.location(), "Undefined function or procedure: " + n.name());
             else if (sym.kind != SymbolTable.Kind.FUNCTION) error(n.location(), "Not a function: " + n.name());
             else if (sym.paramTypes.size() != n.args().size()) error(n.location(), "Argument count mismatch for " + n.name() + ": expected " + sym.paramTypes.size() + ", got " + n.args().size());
-            for (ExprNode a : n.args()) visitExpr(a);
+            for (int i = 0; i < n.args().size(); i++) {
+                ExprNode a = n.args().get(i);
+                visitExpr(a);
+                if (sym != null && sym.kind == SymbolTable.Kind.FUNCTION && i < sym.paramTypes.size()) {
+                    DataTypeNode actual = typeOfExpr(a);
+                    DataTypeNode expected = sym.paramTypes.get(i);
+                    if (!typesCompatible(expected, actual)) {
+                        error(a.location(), "Argument type mismatch for " + n.name() + " param #" + (i + 1)
+                                + ": expected " + formatType(expected) + ", got " + formatType(actual));
+                    }
+                }
+            }
             return;
         }
         if (s instanceof IfStmtNode n) {
@@ -350,6 +382,11 @@ public class SemanticAnalyzer {
         }
         if (e instanceof SelfFieldExprNode n) {
             if (agentDepth == 0) error(n.location(), "'self' is only valid inside an agent body");
+            else {
+                // Validate that the field exists in the current agent scope
+                SymbolTable.Symbol s = table.resolve(n.fieldName());
+                if (s == null) error(n.location(), "Undefined identifier: " + n.fieldName());
+            }
             return;
         }
         if (e instanceof CallExprNode n) {
@@ -357,7 +394,18 @@ public class SemanticAnalyzer {
             if (sym == null) error(n.location(), "Undefined function: " + n.name());
             else if (sym.kind != SymbolTable.Kind.FUNCTION) error(n.location(), "Not a function: " + n.name());
             else if (sym.paramTypes.size() != n.args().size()) error(n.location(), "Argument count mismatch for " + n.name());
-            for (ExprNode a : n.args()) visitExpr(a);
+            for (int i = 0; i < n.args().size(); i++) {
+                ExprNode a = n.args().get(i);
+                visitExpr(a);
+                if (sym != null && sym.kind == SymbolTable.Kind.FUNCTION && i < sym.paramTypes.size()) {
+                    DataTypeNode actual = typeOfExpr(a);
+                    DataTypeNode expected = sym.paramTypes.get(i);
+                    if (!typesCompatible(expected, actual)) {
+                        error(a.location(), "Argument type mismatch for " + n.name() + " param #" + (i + 1)
+                                + ": expected " + formatType(expected) + ", got " + formatType(actual));
+                    }
+                }
+            }
             return;
         }
         if (e instanceof MethodCallExprNode n) {
@@ -370,13 +418,27 @@ public class SemanticAnalyzer {
                 SymbolTable.Symbol sym = methods.get(n.methodName());
                 if (sym == null) error(n.location(), "Undefined method '" + n.methodName() + "' on " + targetType.baseTypeName());
                 else if (sym.paramTypes.size() != n.args().size()) error(n.location(), "Argument count mismatch for method " + n.methodName());
+                else {
+                    for (int i = 0; i < n.args().size() && sym != null; i++) {
+                        DataTypeNode actual = typeOfExpr(n.args().get(i));
+                        DataTypeNode expected = sym.paramTypes.get(i);
+                        if (!typesCompatible(expected, actual)) {
+                            error(n.args().get(i).location(), "Argument type mismatch for method " + n.methodName() + " param #" + (i + 1)
+                                    + ": expected " + formatType(expected) + ", got " + formatType(actual));
+                        }
+                    }
+                }
             }
             for (ExprNode a : n.args()) visitExpr(a);
             return;
         }
         if (e instanceof LvalueExprNode n) {
-            if (n.isSelfField() && agentDepth == 0) error(n.location(), "'self' is only valid inside an agent body");
-            else if (!n.isSelfField() && table.resolve(n.baseName()) == null) error(n.location(), "Undefined identifier: " + n.baseName());
+            if (n.isSelfField()) {
+                if (agentDepth == 0) error(n.location(), "'self' is only valid inside an agent body");
+                else if (table.resolve(n.baseName()) == null) error(n.location(), "Undefined identifier: " + n.baseName());
+            } else if (table.resolve(n.baseName()) == null) {
+                error(n.location(), "Undefined identifier: " + n.baseName());
+            }
             return;
         }
         if (e instanceof BinaryExprNode n) {
@@ -411,7 +473,10 @@ public class SemanticAnalyzer {
             SymbolTable.Symbol s = table.resolve(n.name());
             return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "int", 0);
         }
-        if (e instanceof SelfFieldExprNode n) return new DataTypeNode(n.location(), "int", 0);
+        if (e instanceof SelfFieldExprNode n) {
+            SymbolTable.Symbol s = table.resolve(n.fieldName());
+            return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "int", 0);
+        }
         if (e instanceof MethodCallExprNode n) {
             DataTypeNode targetType = typeOfExpr(n.target());
             java.util.Map<String, SymbolTable.Symbol> methods = agentMethodTable.get(targetType.baseTypeName());
@@ -456,7 +521,8 @@ public class SemanticAnalyzer {
             return s != null ? s.type : null;
         }
         if (e instanceof SelfFieldExprNode n) {
-            return new DataTypeNode(n.location(), "int", 0);
+            SymbolTable.Symbol s = table.resolve(n.fieldName());
+            return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "int", 0);
         }
         return null;
     }
@@ -471,18 +537,35 @@ public class SemanticAnalyzer {
                 error(n.location(), "void function must not return a value");
             } else {
                 DataTypeNode actual = typeOfExpr(n.value());
-                if (!typesCompatible(currentReturnType.baseTypeName(), actual.baseTypeName()))
-                    error(n.location(), "Return type mismatch: expected " + currentReturnType.baseTypeName()
-                            + " but got " + actual.baseTypeName());
+                if (!typesCompatible(currentReturnType, actual))
+                    error(n.location(), "Return type mismatch: expected " + formatType(currentReturnType)
+                            + " but got " + formatType(actual));
             }
         }
     }
 
-    /** Numeric types are mutually compatible; otherwise names must match. */
-    private static boolean typesCompatible(String expected, String actual) {
-        if (expected.equals(actual)) return true;
-        boolean expNum = expected.equals("int") || expected.equals("float");
-        boolean actNum = actual.equals("int") || actual.equals("float");
+    private static String formatType(DataTypeNode t) {
+        if (t == null) return "?";
+        return t.baseTypeName() + "*".repeat(Math.max(0, t.pointerLevel()));
+    }
+
+    /**
+     * Type compatibility:
+     * - Exact match (including pointerLevel)
+     * - Numeric widening: int/float compatible when both are non-pointers
+     * - null (void*) is assignable to any pointer type
+     */
+    private static boolean typesCompatible(DataTypeNode expected, DataTypeNode actual) {
+        if (expected == null || actual == null) return true;
+        if (expected.pointerLevel() != actual.pointerLevel()) {
+            // allow null to any pointer type
+            if (expected.pointerLevel() > 0 && actual.pointerLevel() > 0 && "void".equals(actual.baseTypeName())) return true;
+            return false;
+        }
+        if (expected.baseTypeName().equals(actual.baseTypeName())) return true;
+        if (expected.pointerLevel() > 0) return false;
+        boolean expNum = "int".equals(expected.baseTypeName()) || "float".equals(expected.baseTypeName());
+        boolean actNum = "int".equals(actual.baseTypeName()) || "float".equals(actual.baseTypeName());
         return expNum && actNum;
     }
 

@@ -1,0 +1,19 @@
+// Expected: Parser OK (demonstrates grammar support for records + pointers).
+// Note: Record field semantics and pointer dereference execution may not be implemented in the interpreter.
+
+type Point = record {
+    int x;
+    int y;
+};
+
+int* p;
+int** pp;
+
+void main() {
+    int* local;
+    local = null;
+    // Pointer deref syntax exists at parser-level for lvalues (leading '*'),
+    // but may be treated as a no-op in the current implementation.
+    *local = 1;
+    print("parser-only demo");
+}
