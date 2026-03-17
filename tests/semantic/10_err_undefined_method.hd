@@ -1,0 +1,44 @@
+// Expected: Semantic error (undefined method 'nope' on Counter)
+
+agent Counter {
+    int value = 0;
+
+    update {
+        value = value + 1;
+    }
+
+    int getDouble() {
+        return value * 2;
+    }
+}
+
+agent Printer {
+    int x, y;
+    int t;
+    Counter nearby[];
+
+    update {
+        nearby = neighbors(self, 100);
+        if (nearby.length > 0) {
+            t = nearby[0].nope(); // method does not exist
+        }
+    }
+}
+
+world W {
+    bool spawned = false;
+
+    pre {
+        if (!spawned) {
+            spawn Counter(0, 0);
+            spawn Printer(0, 0);
+            spawned = true;
+        }
+    }
+
+    post {}
+}
+
+void main() {
+    step();
+}

@@ -1,0 +1,26 @@
+// Expected: Semantic error (neighbors expects 0, 1, or 2 arguments)
+
+agent A {
+    int x, y;
+    A near[];
+
+    update {
+        near = neighbors(self, 1, 2); // too many args
+        move(self.x, self.y);
+    }
+}
+
+world W {
+    bool spawned = false;
+    pre {
+        if (!spawned) {
+            spawn A(0, 0);
+            spawned = true;
+        }
+    }
+    post {}
+}
+
+void main() {
+    step();
+}

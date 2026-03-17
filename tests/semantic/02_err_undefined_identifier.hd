@@ -1,0 +1,25 @@
+// Expected: Semantic error (undefined identifier: foo)
+
+agent A {
+    int x, y;
+
+    update {
+        foo = 1; // foo is not declared anywhere
+        move(self.x, self.y);
+    }
+}
+
+world W {
+    bool spawned = false;
+    pre {
+        if (!spawned) {
+            spawn A(0, 0);
+            spawned = true;
+        }
+    }
+    post {}
+}
+
+void main() {
+    step();
+}

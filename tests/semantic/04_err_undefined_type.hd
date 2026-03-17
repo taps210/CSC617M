@@ -1,0 +1,23 @@
+// Expected: Semantic error (undefined type: Foo)
+
+agent A {
+    int x, y;
+    update { move(self.x, self.y); }
+}
+
+world W {
+    bool spawned = false;
+    pre {
+        if (!spawned) {
+            spawn A(0, 0);
+            spawned = true;
+        }
+    }
+    post {}
+}
+
+Foo badGlobal; // Foo is not a built-in type and is not declared as an agent/type alias
+
+void main() {
+    step();
+}

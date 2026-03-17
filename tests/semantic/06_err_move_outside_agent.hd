@@ -1,0 +1,22 @@
+// Expected: Semantic error (move() only valid inside an agent body)
+
+agent A {
+    int x, y;
+    update { move(self.x, self.y); }
+}
+
+world W {
+    bool spawned = false;
+    pre {
+        if (!spawned) {
+            spawn A(0, 0);
+            spawned = true;
+        }
+    }
+    post {}
+}
+
+void main() {
+    move(1, 1); // invalid: move in main
+    step();
+}

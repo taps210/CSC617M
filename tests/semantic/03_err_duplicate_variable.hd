@@ -1,0 +1,26 @@
+// Expected: Semantic error (duplicate variable: a)
+
+agent A {
+    int x, y;
+
+    update {
+        int a;
+        int a; // duplicate in same block scope
+        move(self.x, self.y);
+    }
+}
+
+world W {
+    bool spawned = false;
+    pre {
+        if (!spawned) {
+            spawn A(0, 0);
+            spawned = true;
+        }
+    }
+    post {}
+}
+
+void main() {
+    step();
+}

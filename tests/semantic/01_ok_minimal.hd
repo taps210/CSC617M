@@ -1,0 +1,26 @@
+// Expected: Semantic OK
+
+agent A {
+    int x, y;
+
+    update {
+        move(self.x, self.y);
+    }
+}
+
+world W {
+    bool spawned = false;
+
+    pre {
+        if (!spawned) {
+            spawn A(0, 0);
+            spawned = true;
+        }
+    }
+
+    post {}
+}
+
+void main() {
+    step();
+}
