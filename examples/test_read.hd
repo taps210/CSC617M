@@ -1,0 +1,12 @@
+// Test read() — reads input from stdin.
+// Run: ./gradlew run --args="--run examples/test_read.hd"
+
+void main() {
+    int x;
+    int doubled;
+    print("Enter a number:");
+    read(x);
+    print("You entered:", x);
+    doubled = x * 2;
+    print("Doubled:", doubled);
+}
