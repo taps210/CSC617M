@@ -41,6 +41,18 @@ public class HerdIDE extends JFrame {
         controller.addListener(editorPanel);
         controller.addListener(outputTabs);
         controller.addListener(statusBar);
+        editorPanel.setBeforeRunHook(() -> outputTabs.getInterpreterPanel().configureInputPrompts(editorPanel.getText()));
+        controller.setRuntimeEventListener(outputTabs.getInterpreterPanel());
+        outputTabs.getInterpreterPanel().setOnStartRequested(editorPanel::run);
+        outputTabs.getInterpreterPanel().setOnRestartRequested(() -> {
+            controller.stopRuntime();
+            editorPanel.run();
+        });
+        outputTabs.getInterpreterPanel().setOnStopRequested(controller::stopRuntime);
+        outputTabs.getInterpreterPanel().setOnInputSubmitted(line -> {
+            if (!controller.isRuntimeActive() && !controller.isCompiling()) editorPanel.run();
+            controller.submitRuntimeInputLine(line);
+        });
 
         statusBar.attachToEditor(editorPanel.getEditor());
         outputTabs.getErrorsPanel().setOnErrorSelected(() -> {

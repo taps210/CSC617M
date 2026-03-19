@@ -1,0 +1,70 @@
+// Complex interpreter test with runtime input
+// Input order:
+// 1) n (int)
+// 2) base (int)
+// 3) gate (bool: true/false)
+// 4) label (string, e.g. "demo")
+
+const LIMIT = 20;
+
+int fib(int x) {
+    if (x <= 1) { return x; }
+    return fib(x - 1) + fib(x - 2);
+}
+
+int powi(int b, int e) {
+    int r = 1;
+    int i = 0;
+    while (i < e) {
+        r = r * b;
+        i = i + 1;
+    }
+    return r;
+}
+
+void main() {
+    int n = 0;
+    int base = 0;
+    int i = 0;
+    int sum = 0;
+    int factLike = 1;
+    bool gate = false;
+    string label = "unset";
+    int arr[20];
+    int f = 0;
+
+    print("enter n base gate label");
+
+    read(n);
+    read(base);
+    read(gate);
+    read(label);
+
+    if (n < 0) { n = 0; }
+    if (n > LIMIT) { n = LIMIT; }
+
+    for (int k = 0; k < n; k = k + 1) {
+        arr[k] = k * k + base;
+    }
+
+    while (i < n) {
+        sum = sum + arr[i];
+        i = i + 1;
+    }
+
+    repeat {
+        factLike = factLike * (n + 1);
+        n = n - 1;
+    } until (n <= 0);
+
+    f = fib(7);
+
+    if (gate && (sum > 0)) {
+        print("label=", label, " sum=", sum, " pow=", powi(base, 3), " fib7=", f, " factLike=", factLike);
+    } else {
+        print("gate false", label, sum);
+    }
+
+    assert(f == 13);
+    print("done");
+}

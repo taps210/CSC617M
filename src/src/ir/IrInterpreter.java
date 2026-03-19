@@ -43,6 +43,7 @@ public final class IrInterpreter {
     private final List<Object> paramList = new ArrayList<>();
     private Object returnValue;
     private final InputStream in;
+    private final BufferedReader inputReader;
     private final PrintStream out;
 
     /** ABM runtime state (used when program != null). */
@@ -72,6 +73,7 @@ public final class IrInterpreter {
     public IrInterpreter(List<FunctionIR> funcs, Ast.ProgramNode program, InputStream in, PrintStream out) {
         this.program = program;
         this.in = in != null ? in : System.in;
+        this.inputReader = new BufferedReader(new InputStreamReader(this.in));
         this.out = out != null ? out : System.out;
         for (FunctionIR f : funcs) {
             functions.put(f.name(), f);
@@ -334,8 +336,8 @@ public final class IrInterpreter {
 
     private boolean executeRead(Instr.ReadInstr r) {
         String name = lvalueName(r.lvalue());
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
-            String line = reader.readLine();
+        try {
+            String line = inputReader.readLine();
             if (line != null) store.put(name, parseInput(line));
         } catch (IOException e) {
             throw new RuntimeException("Read failed", e);

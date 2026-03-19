@@ -22,18 +22,38 @@ import src.ir.ControlFlowGraph;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import javax.swing.SwingUtilities;
 
 /**
  * Single compile authority. Runs scanner and parser, measures timing,
  * builds CompileResult and CompileMetrics, notifies listeners.
  */
 public class CompileController {
+    private static final class InteractiveRuntimeSession {
+        final PrintStream inputWriter;
+        final StringBuilder output = new StringBuilder();
+        final Thread thread;
+
+        InteractiveRuntimeSession(PrintStream inputWriter, Thread thread) {
+            this.inputWriter = inputWriter;
+            this.thread = thread;
+        }
+    }
+
     private CompileResult lastResult;
     private final List<CompileListener> listeners = new ArrayList<>();
+    private String runtimeInput = "";
+    private RuntimeEventListener runtimeEventListener;
+    private InteractiveRuntimeSession runtimeSession;
+    private final List<String> pendingInputLines = new ArrayList<>();
+    private volatile boolean compileInProgress;
+    private volatile boolean runtimeStopRequested;
 
     public void addListener(CompileListener listener) {
         listeners.add(listener);
@@ -47,7 +67,50 @@ public class CompileController {
         return lastResult;
     }
 
+    public synchronized void setRuntimeEventListener(RuntimeEventListener runtimeEventListener) {
+        this.runtimeEventListener = runtimeEventListener;
+    }
+
+    public synchronized boolean isRuntimeActive() {
+        return runtimeSession != null && runtimeSession.thread.isAlive();
+    }
+
+    public synchronized void stopRuntime() {
+        runtimeStopRequested = true;
+        stopRuntimeSession();
+    }
+
+    public boolean isCompiling() {
+        return compileInProgress;
+    }
+
+    public synchronized void submitRuntimeInputLine(String line) {
+        String value = line != null ? line : "";
+        if (isRuntimeActive()) {
+            runtimeSession.inputWriter.print(value);
+            runtimeSession.inputWriter.print(System.lineSeparator());
+            runtimeSession.inputWriter.flush();
+        } else {
+            pendingInputLines.add(value);
+        }
+    }
+
+    public void setRuntimeInput(String runtimeInput) {
+        this.runtimeInput = runtimeInput != null ? runtimeInput : "";
+    }
+
+    public void compileInteractive(String sourceText) {
+        compileInternal(sourceText, true);
+    }
+
     public void compile(String sourceText) {
+        compileInternal(sourceText, false);
+    }
+
+    private void compileInternal(String sourceText, boolean interactiveRuntime) {
+        compileInProgress = true;
+        try {
+        stopRuntimeSession();
         CompileMetrics metrics = new CompileMetrics();
         computeSourceMetrics(sourceText, metrics);
 
@@ -135,24 +198,127 @@ public class CompileController {
 
         // Interpretation (only when IR was built successfully)
         if (irText.isPresent()) {
-            long run0 = System.nanoTime();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            PrintStream capturedOut = new PrintStream(baos);
-            try {
-                new IrInterpreter(irFuncs, ast.get(), new ByteArrayInputStream(new byte[0]), capturedOut).run();
-            } catch (Exception e) {
-                allErrors.add(new CompileError(0, 0, e.getMessage(), CompileError.Source.RUNTIME, CompileError.Severity.ERROR));
+            if (interactiveRuntime) {
+                interpreterOutput = Optional.of("");
+            } else {
+                long run0 = System.nanoTime();
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                PrintStream capturedOut = new PrintStream(baos);
+                try {
+                    byte[] inputBytes = runtimeInput.getBytes(StandardCharsets.UTF_8);
+                    new IrInterpreter(irFuncs, ast.get(), new ByteArrayInputStream(inputBytes), capturedOut).run();
+                } catch (Exception e) {
+                    allErrors.add(new CompileError(0, 0, e.getMessage(), CompileError.Source.RUNTIME, CompileError.Severity.ERROR));
+                }
+                metrics.runTimeNs = System.nanoTime() - run0;
+                interpreterOutput = Optional.of(baos.toString());
             }
-            metrics.runTimeNs = System.nanoTime() - run0;
-            interpreterOutput = Optional.of(baos.toString());
         }
 
         CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics, ast, parseTree,
                 irText, cfgText, interpreterOutput, symbolEntries);
         this.lastResult = result;
-        for (CompileListener l : listeners) {
-            l.onCompileComplete(result);
+        notifyListeners(result);
+
+        if (interactiveRuntime && ast.isPresent() && !hasErrors) {
+            startInteractiveRuntime(irFuncs, ast.get());
         }
+        } finally {
+            compileInProgress = false;
+        }
+    }
+
+    private void startInteractiveRuntime(List<FunctionIR> functions, ProgramNode ast) {
+        try {
+            runtimeStopRequested = false;
+            java.io.PipedInputStream inPipe = new java.io.PipedInputStream();
+            java.io.PipedOutputStream outPipe = new java.io.PipedOutputStream(inPipe);
+            PrintStream inputWriter = new PrintStream(outPipe, true, StandardCharsets.UTF_8);
+
+            OutputStream runtimeOut = new OutputStream() {
+                @Override
+                public void write(int b) {
+                    write(new byte[]{(byte) b}, 0, 1);
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) {
+                    if (len <= 0) return;
+                    String text = new String(b, off, len, StandardCharsets.UTF_8);
+                    synchronized (CompileController.this) {
+                        if (runtimeSession != null) runtimeSession.output.append(text);
+                    }
+                    RuntimeEventListener listener = runtimeEventListener;
+                    if (listener != null) listener.onRuntimeOutput(text);
+                }
+            };
+
+            Thread runtimeThread = new Thread(() -> {
+                RuntimeEventListener listener = runtimeEventListener;
+                if (listener != null) listener.onRuntimeStarted();
+                String runtimeError = null;
+                try {
+                    PrintStream liveOut = new PrintStream(runtimeOut, true, StandardCharsets.UTF_8);
+                    new IrInterpreter(functions, ast, inPipe, liveOut).run();
+                } catch (Exception ex) {
+                    runtimeError = ex.getMessage();
+                } finally {
+                    String finalOutput;
+                    boolean stopped;
+                    synchronized (CompileController.this) {
+                        finalOutput = runtimeSession != null ? runtimeSession.output.toString() : "";
+                        stopped = runtimeStopRequested;
+                        runtimeSession = null;
+                        runtimeStopRequested = false;
+                    }
+                    RuntimeEventListener endListener = runtimeEventListener;
+                    if (endListener != null) endListener.onRuntimeFinished(finalOutput, stopped ? "Stopped by user" : runtimeError);
+                }
+            }, "herd-runtime");
+
+            synchronized (this) {
+                runtimeSession = new InteractiveRuntimeSession(inputWriter, runtimeThread);
+            }
+
+            for (String line : drainPendingInputLines()) {
+                submitRuntimeInputLine(line);
+            }
+            runtimeThread.start();
+        } catch (Exception e) {
+            RuntimeEventListener listener = runtimeEventListener;
+            if (listener != null) listener.onRuntimeFinished("", e.getMessage());
+        }
+    }
+
+    private synchronized List<String> drainPendingInputLines() {
+        List<String> copy = new ArrayList<>(pendingInputLines);
+        pendingInputLines.clear();
+        return copy;
+    }
+
+    private synchronized void stopRuntimeSession() {
+        if (runtimeSession == null) return;
+        try {
+            runtimeSession.inputWriter.close();
+        } catch (Exception ignored) {
+        }
+        runtimeSession.thread.interrupt();
+        runtimeSession = null;
+        pendingInputLines.clear();
+    }
+
+    private void notifyListeners(CompileResult result) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            for (CompileListener l : listeners) {
+                l.onCompileComplete(result);
+            }
+            return;
+        }
+        SwingUtilities.invokeLater(() -> {
+            for (CompileListener l : listeners) {
+                l.onCompileComplete(result);
+            }
+        });
     }
 
     private void computeSourceMetrics(String sourceText, CompileMetrics metrics) {

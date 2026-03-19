@@ -8,6 +8,7 @@ import src.gui.model.Theme;
 import javax.swing.*;
 import javax.swing.text.Element;
 import java.awt.*;
+import java.util.Objects;
 
 /**
  * Editor panel: JTextPane with syntax highlighting, error underlines, and line numbers.
@@ -17,6 +18,10 @@ public class EditorPanel extends JPanel implements CompileListener {
     private final JTextPane editor;
     private final CompileController controller;
     private final ErrorHighlighter errorHighlighter;
+    private Runnable beforeRunHook = () -> {};
+    private boolean compiling;
+    private boolean pendingCompile;
+    private String pendingSource = "";
 
     public EditorPanel(CompileController controller) {
         super(new BorderLayout());
@@ -53,7 +58,45 @@ public class EditorPanel extends JPanel implements CompileListener {
 
     public void run() {
         errorHighlighter.clear();
-        controller.compile(editor.getText());
+        beforeRunHook.run();
+        requestCompile(editor.getText());
+    }
+
+    public void setBeforeRunHook(Runnable beforeRunHook) {
+        this.beforeRunHook = Objects.requireNonNullElse(beforeRunHook, () -> {});
+    }
+
+    private synchronized void requestCompile(String source) {
+        if (compiling) {
+            pendingCompile = true;
+            pendingSource = source != null ? source : "";
+            return;
+        }
+        compiling = true;
+        startCompileWorker(source != null ? source : "");
+    }
+
+    private void startCompileWorker(String source) {
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                controller.compileInteractive(source);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                String nextSource;
+                synchronized (EditorPanel.this) {
+                    compiling = false;
+                    if (!pendingCompile) return;
+                    pendingCompile = false;
+                    nextSource = pendingSource;
+                }
+                requestCompile(nextSource);
+            }
+        };
+        worker.execute();
     }
 
     @Override
