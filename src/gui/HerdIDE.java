@@ -127,6 +127,7 @@ public class HerdIDE extends JFrame {
     private void updateWindowTitle() {
         var f = fileHandler.getCurrentFile();
         setTitle(f == null ? "Herd IDE" : "Herd IDE — " + f.getName());
+        outputTabs.getInterpreterPanel().loadSiblingInputPreset(f != null ? f.toPath() : null);
     }
 
     // Source - https://stackoverflow.com/a/56961097

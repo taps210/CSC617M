@@ -1,4 +1,29 @@
 // Expected: Semantic OK + runs successfully (Output tab shows prints)
+// DEMO + SUBMISSION CHECKLIST (IDE)
+// 1) From project root, run: ./gradlew -q clean test
+// 2) Launch IDE: ./gradlew -q runIDE
+// 3) In IDE, open this file: tests/rubric/01_interpreter_constructs_ok.hd
+// 4) Click Run/Compile. Confirm these tabs:
+//    - Errors: empty
+//    - Semantic: "Semantic OK"
+//    - Output contains exactly:
+//      === Herd demo ===  c= A  xf= 2.5
+//      sum(arr)= 35  ok= true
+//      fact( 5 )= 120
+//      repeat-until t= 3
+//      nested ok j= 1
+//      === done ===
+// 5) Optional demo add-ons:
+//    - Runtime error case: tests/rubric/02_interpreter_runtime_error_assert.hd
+//      Expected output includes: Runtime error: Assertion failed
+//    - Semantic error case: tests/rubric/11_semantic_errors_pack.hd
+//      Expected: duplicate variable, undefined identifier, type mismatch, const reassignment,
+//      and function argument mismatch errors.
+// 6) Optimizer proof (separate test files):
+//    - ./gradlew test --tests "src.ir.IrOptimizerConstantFoldingTest"
+//    - ./gradlew test --tests "src.ir.IrOptimizerBranchSimplificationTest"
+//    - ./gradlew test --tests "src.ir.IrOptimizerDeadTempEliminationTest"
+// 7) Before submission, verify git status only contains intended files.
 // Covers rubric items:
 // - variable declarations (int/float/bool/string/char)
 // - const declaration (literal const)

@@ -9,6 +9,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +51,7 @@ public class InterpreterOutputPanel extends JPanel implements CompileListener, R
     private List<String> queuedPresetLines = new ArrayList<>();
     private final Map<String, List<String>> presetLinesByName = new LinkedHashMap<>();
     private int submittedInputs;
+    private static final String PRESET_FROM_FILE = "From .in file";
 
     public InterpreterOutputPanel() {
         super(new BorderLayout());
@@ -225,6 +228,49 @@ public class InterpreterOutputPanel extends JPanel implements CompileListener, R
             presetCombo.addItem(key);
         }
         presetCombo.setSelectedIndex(0);
+    }
+
+    public void loadSiblingInputPreset(Path sourceFile) {
+        if (sourceFile == null) {
+            removeDynamicFilePreset();
+            return;
+        }
+        String fileName = sourceFile.getFileName().toString();
+        int dot = fileName.lastIndexOf('.');
+        String stem = dot >= 0 ? fileName.substring(0, dot) : fileName;
+        Path inFile = sourceFile.resolveSibling(stem + ".in");
+        if (!Files.exists(inFile)) {
+            removeDynamicFilePreset();
+            return;
+        }
+        try {
+            List<String> lines = Files.readAllLines(inFile);
+            presetLinesByName.put(PRESET_FROM_FILE, lines);
+            DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) presetCombo.getModel();
+            if (model.getIndexOf(PRESET_FROM_FILE) < 0) {
+                presetCombo.addItem(PRESET_FROM_FILE);
+            }
+            presetCombo.setSelectedItem(PRESET_FROM_FILE);
+            queuedPresetLines = new ArrayList<>(lines);
+            if (!queuedPresetLines.isEmpty()) {
+                inputField.setText(queuedPresetLines.get(0));
+                inputStatusLabel.setText("Loaded preset from: " + inFile.getFileName());
+            } else {
+                inputStatusLabel.setText("Loaded empty preset from: " + inFile.getFileName());
+            }
+        } catch (Exception ignored) {
+            removeDynamicFilePreset();
+        }
+    }
+
+    private void removeDynamicFilePreset() {
+        presetLinesByName.remove(PRESET_FROM_FILE);
+        DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) presetCombo.getModel();
+        int idx = model.getIndexOf(PRESET_FROM_FILE);
+        if (idx >= 0) model.removeElementAt(idx);
+        if (PRESET_FROM_FILE.equals(presetCombo.getSelectedItem())) {
+            presetCombo.setSelectedIndex(0);
+        }
     }
 
     private void rememberInputHistory(String line) {

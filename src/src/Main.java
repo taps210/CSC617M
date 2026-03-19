@@ -10,6 +10,7 @@ import src.ir.FunctionIR;
 import src.ir.IrBuilder;
 import src.ir.IrFormatter;
 import src.ir.IrInterpreter;
+import src.ir.IrOptimizer;
 import src.semantic.SemanticAnalyzer;
 
 import java.io.ByteArrayOutputStream;
@@ -170,7 +171,7 @@ public final class Main {
         ProgramNode ast = parseAndAnalyze(inputFile, sb);
         if (ast != null) {
             try {
-                for (FunctionIR f : IrBuilder.buildProgram(ast))
+                for (FunctionIR f : optimizeAll(IrBuilder.buildProgram(ast)))
                     sb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
             } catch (Exception e) {
                 sb.append("IR build failed: ").append(e.getMessage()).append(System.lineSeparator());
@@ -190,7 +191,7 @@ public final class Main {
         }
         List<FunctionIR> funcs;
         try {
-            funcs = IrBuilder.buildProgram(ast);
+            funcs = optimizeAll(IrBuilder.buildProgram(ast));
         } catch (Exception e) {
             sb.append("IR build failed: ").append(e.getMessage()).append(System.lineSeparator());
             writeResult(sb.toString(), outputFile, "interpreter output");
@@ -226,7 +227,7 @@ public final class Main {
         ProgramNode ast = parseAndAnalyze(inputFile, sb);
         if (ast != null) {
             try {
-                for (FunctionIR f : IrBuilder.buildProgram(ast)) {
+                for (FunctionIR f : optimizeAll(IrBuilder.buildProgram(ast))) {
                     sb.append("function ").append(f.name()).append(System.lineSeparator());
                     List<BasicBlocks.Block> blocks = BasicBlocks.build(f.instructions());
                     sb.append(IrFormatter.formatCFG(new ControlFlowGraph(blocks))).append(System.lineSeparator());
@@ -271,5 +272,13 @@ public final class Main {
         } else {
             System.out.print(result);
         }
+    }
+
+    private static List<FunctionIR> optimizeAll(List<FunctionIR> funcs) {
+        List<FunctionIR> out = new ArrayList<>(funcs.size());
+        for (FunctionIR f : funcs) {
+            out.add(IrOptimizer.optimizeFunction(f).function());
+        }
+        return out;
     }
 }

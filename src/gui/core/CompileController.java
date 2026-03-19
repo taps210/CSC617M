@@ -19,6 +19,7 @@ import src.ir.FunctionIR;
 import src.ir.IrInterpreter;
 import src.ir.BasicBlocks;
 import src.ir.ControlFlowGraph;
+import src.ir.IrOptimizer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -54,6 +55,7 @@ public class CompileController {
     private final List<String> pendingInputLines = new ArrayList<>();
     private volatile boolean compileInProgress;
     private volatile boolean runtimeStopRequested;
+    private volatile boolean runtimeStopNotified;
 
     public void addListener(CompileListener listener) {
         listeners.add(listener);
@@ -77,7 +79,21 @@ public class CompileController {
 
     public synchronized void stopRuntime() {
         runtimeStopRequested = true;
-        stopRuntimeSession();
+        if (runtimeSession == null) {
+            return;
+        }
+        String partialOutput = runtimeSession.output.toString();
+        try {
+            runtimeSession.inputWriter.close();
+        } catch (Exception ignored) {
+        }
+        runtimeSession.thread.interrupt();
+        runtimeSession = null;
+        pendingInputLines.clear();
+        runtimeStopRequested = false;
+        runtimeStopNotified = true;
+        RuntimeEventListener listener = runtimeEventListener;
+        if (listener != null) listener.onRuntimeFinished(partialOutput, "Stopped by user");
     }
 
     public boolean isCompiling() {
@@ -180,6 +196,12 @@ public class CompileController {
             long ir0 = System.nanoTime();
             try {
                 irFuncs = IrBuilder.buildProgram(ast.get());
+                // Optimization #1: constant folding at IR level.
+                List<FunctionIR> optimized = new ArrayList<>(irFuncs.size());
+                for (FunctionIR f : irFuncs) {
+                    optimized.add(IrOptimizer.optimizeFunction(f).function());
+                }
+                irFuncs = optimized;
                 StringBuilder irSb = new StringBuilder();
                 StringBuilder cfgSb = new StringBuilder();
                 for (FunctionIR f : irFuncs) {
@@ -221,7 +243,13 @@ public class CompileController {
         notifyListeners(result);
 
         if (interactiveRuntime && ast.isPresent() && !hasErrors) {
+            if (runtimeStopRequested) {
+                runtimeStopRequested = false;
+                RuntimeEventListener listener = runtimeEventListener;
+                if (listener != null) listener.onRuntimeFinished("", "Stopped by user");
+            } else {
             startInteractiveRuntime(irFuncs, ast.get());
+            }
         }
         } finally {
             compileInProgress = false;
@@ -265,14 +293,19 @@ public class CompileController {
                 } finally {
                     String finalOutput;
                     boolean stopped;
+                    boolean stopNotified;
                     synchronized (CompileController.this) {
                         finalOutput = runtimeSession != null ? runtimeSession.output.toString() : "";
                         stopped = runtimeStopRequested;
+                        stopNotified = runtimeStopNotified;
                         runtimeSession = null;
                         runtimeStopRequested = false;
+                        runtimeStopNotified = false;
                     }
                     RuntimeEventListener endListener = runtimeEventListener;
-                    if (endListener != null) endListener.onRuntimeFinished(finalOutput, stopped ? "Stopped by user" : runtimeError);
+                    if (endListener != null && !stopNotified) {
+                        endListener.onRuntimeFinished(finalOutput, stopped ? "Stopped by user" : runtimeError);
+                    }
                 }
             }, "herd-runtime");
 
