@@ -161,6 +161,12 @@ public final class IrBuilder {
                 Operand index = genExpr(b.right());
                 Operand val = genExpr(n.value());
                 emit(new Instr.ArrayStoreInstr(arrayName, index, val));
+            } else if (lv instanceof BinaryExprNode b && "->".equals(b.op())) {
+                // Pointer field assignment: ptr->field = value
+                Operand ptr = genExpr(b.left());
+                String fieldName = b.right() instanceof IdentExprNode ? ((IdentExprNode) b.right()).name() : "";
+                Operand val = genExpr(n.value());
+                emit(new Instr.HeapStoreInstr(ptr, fieldName, val));
             } else {
                 Operand val = genExpr(n.value());
                 String target = lvalueName(lv);
@@ -355,10 +361,23 @@ public final class IrBuilder {
             emit(new Instr.AssignConst(t, null));
             return Operand.temp(t);
         }
+        if (e instanceof NewExprNode n) {
+            String result = nextTemp();
+            emit(new Instr.HeapAllocInstr(result, n.typeName()));
+            return Operand.temp(result);
+        }
         if (e instanceof ParenExprNode n) {
             return genExpr(n.inner());
         }
         if (e instanceof BinaryExprNode n) {
+            // Handle pointer field access: ptr->field
+            if ("->".equals(n.op())) {
+                Operand ptr = genExpr(n.left());
+                String fieldName = n.right() instanceof IdentExprNode ? ((IdentExprNode) n.right()).name() : "";
+                String result = nextTemp();
+                emit(new Instr.HeapLoadInstr(result, ptr, fieldName));
+                return Operand.temp(result);
+            }
             Operand left = genExpr(n.left());
             Operand right = genExpr(n.right());
             String result = nextTemp();

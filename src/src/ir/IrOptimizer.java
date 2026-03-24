@@ -329,6 +329,8 @@ public final class IrOptimizer {
         if (ins instanceof Instr.AssignUnary a) return a.result();
         if (ins instanceof Instr.AssignBinary a) return a.result();
         if (ins instanceof Instr.AllocArrayInstr a) return a.result();
+        if (ins instanceof Instr.HeapAllocInstr h) return h.result();
+        if (ins instanceof Instr.HeapLoadInstr h) return h.result();
         if (ins instanceof Instr.CallInstr c) return c.result();
         if (ins instanceof Instr.AbmCallInstr a) return a.result();
         if (ins instanceof Instr.NeighborsInstr n) return n.result();
@@ -340,7 +342,8 @@ public final class IrOptimizer {
         return ins instanceof Instr.AssignConst
                 || ins instanceof Instr.AssignCopy
                 || ins instanceof Instr.AssignUnary
-                || ins instanceof Instr.AssignBinary;
+                || ins instanceof Instr.AssignBinary
+                || ins instanceof Instr.HeapLoadInstr;  // pure read, can be eliminated if unused
     }
 
     private static boolean isTempName(String name) {
@@ -375,6 +378,12 @@ public final class IrOptimizer {
         else if (ins instanceof Instr.AbmCallInstr a) for (Operand op : a.args()) addOperandSymbol(used, op);
         else if (ins instanceof Instr.ZoneEnterInstr a) addOperandSymbol(used, a.radius());
         else if (ins instanceof Instr.AgentMethodCallInstr a) used.add(a.handle());
+        else if (ins instanceof Instr.HeapAllocInstr) { /* no operands consumed */ }
+        else if (ins instanceof Instr.HeapLoadInstr h) addOperandSymbol(used, h.ptr());
+        else if (ins instanceof Instr.HeapStoreInstr h) {
+            addOperandSymbol(used, h.ptr());
+            addOperandSymbol(used, h.value());
+        }
         return used;
     }
 
@@ -393,6 +402,19 @@ public final class IrOptimizer {
     private static void invalidateWrittenSymbols(Instr ins, Map<String, Object> known) {
         if (ins instanceof Instr.AllocArrayInstr a) {
             known.remove(a.result());
+            return;
+        }
+        if (ins instanceof Instr.HeapAllocInstr h) {
+            known.remove(h.result());
+            return;
+        }
+        if (ins instanceof Instr.HeapLoadInstr h) {
+            known.remove(h.result());
+            return;
+        }
+        if (ins instanceof Instr.HeapStoreInstr) {
+            // Heap store could affect anything; clear all constants pessimistically
+            known.clear();
             return;
         }
         if (ins instanceof Instr.CallInstr c && c.result() != null) {

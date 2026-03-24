@@ -1,0 +1,61 @@
+// Pointer Error Tests
+// These test error conditions: type mismatch, null dereference, etc.
+
+agent Drop {
+    int x;
+
+    update {
+        // No update needed for error tests
+    }
+}
+
+agent Forager {
+    int x;
+
+    update {
+        // No update needed for error tests
+    }
+}
+
+// ERROR TEST 1: Type mismatch (should NOT compile)
+// Uncomment to test semantic error
+/*
+void testTypeMismatch() {
+    Forager* f;
+    {
+        f = new Drop();  // Type error: cannot assign Drop* to Forager*
+        print("This should not compile");
+    }
+}
+*/
+
+// ERROR TEST 2: Null pointer dereference (runtime error)
+void testNullDereference() {
+    Drop* ptr;
+    {
+        print("=== Null Dereference Test (expect runtime error) ===");
+        ptr = null;
+        ptr->x = 5;  // Runtime error: "Null pointer dereference"
+        print("This should not print");
+    }
+}
+
+// ERROR TEST 3: Pointer vs array type confusion
+// Uncomment to test semantic error
+/*
+void testPointerArrayConfusion() {
+    Drop* ptr;
+    Drop[] arr;
+    {
+        ptr = new Drop();
+        arr = ptr;  // Type error: cannot assign Drop* to Drop[]
+    }
+}
+*/
+
+void main() {
+    // Run this to test null dereference:
+    testNullDereference();
+
+    // Uncomment the functions above to test semantic errors
+}

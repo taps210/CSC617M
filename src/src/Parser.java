@@ -668,7 +668,11 @@ public final class Parser {
     private ParseTreeNode lvalue() {
         List<ParseTreeNode> children = new ArrayList<>();
         if (match(TokenType.STAR)) {
-            return lvalue(); // pointer dereference — consume and return inner
+            // Wrap inner lvalue in UnaryExprNode for proper dereference
+            Token starTok = previous();
+            ParseTreeNode inner = lvalue();
+            return ParseTreeNode.of(ParseTreeKind.UNARY_EXPR,
+                    List.of(terminal(starTok), inner), starTok);
         }
         if (match(TokenType.SELF)) {
             Token selfTok = previous();
@@ -690,6 +694,11 @@ public final class Parser {
             if (match(TokenType.DOT)) {
                 children.add(terminal(previous()));
                 children.add(terminal(consume(TokenType.IDENT, "Expected field name after '.'.")));
+                continue;
+            }
+            if (match(TokenType.ARROW)) {
+                children.add(terminal(previous()));
+                children.add(terminal(consume(TokenType.IDENT, "Expected field name after '->'.")));
                 continue;
             }
             if (match(TokenType.LBRACKET)) {
@@ -864,12 +873,23 @@ public final class Parser {
             } else if (match(TokenType.DOT)) {
                 children.add(terminal(previous()));
                 children.add(terminal(consume(TokenType.IDENT, "Expected field name after '.'.")));
+            } else if (match(TokenType.ARROW)) {
+                children.add(terminal(previous()));
+                children.add(terminal(consume(TokenType.IDENT, "Expected field name after '->'.")));
             } else break;
         }
         return ParseTreeNode.of(ParseTreeKind.PRIMARY, children, null);
     }
 
     private ParseTreeNode atom() {
+        if (match(TokenType.NEW)) {
+            Token newTok = previous();
+            Token typeTok = consume(TokenType.IDENT, "Expected type name after 'new'.");
+            consume(TokenType.LPAREN, "Expected '(' after type name.");
+            consume(TokenType.RPAREN, "Expected ')' — constructor args not supported.");
+            emit("NEW expression", newTok);
+            return ParseTreeNode.of(ParseTreeKind.NEW_EXPR, List.of(terminal(typeTok)), newTok);
+        }
         if (match(TokenType.LPAREN)) {
             Token lparen = previous();
             ParseTreeNode inner = expr();

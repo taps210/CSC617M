@@ -172,7 +172,12 @@ public class DebuggerPanel extends JPanel {
             // Update variables table
             variablesModel.setRowCount(0);
             for (Map.Entry<String, Object> entry : store.entrySet()) {
-                variablesModel.addRow(new Object[]{entry.getKey(), entry.getValue()});
+                Object displayVal = entry.getValue();
+                // Format HeapPointer values as #id instead of raw object reference
+                if (displayVal != null && displayVal.getClass().getSimpleName().equals("HeapPointer")) {
+                    displayVal = displayVal.toString();
+                }
+                variablesModel.addRow(new Object[]{entry.getKey(), displayVal});
             }
 
             // Update call stack list

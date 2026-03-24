@@ -21,7 +21,7 @@ public final class Ast {
     public sealed interface ExprNode
             permits BinaryExprNode, UnaryExprNode, CallExprNode, MethodCallExprNode, LiteralExprNode,
             IdentExprNode, SelfFieldExprNode, SelfExprNode, NullExprNode, ParenExprNode,
-            LvalueExprNode, AbmCallExprNode, PlaceholderExprNode, TernaryExprNode {
+            LvalueExprNode, AbmCallExprNode, PlaceholderExprNode, TernaryExprNode, NewExprNode {
         SourceSpan location();
     }
 
@@ -40,6 +40,7 @@ public final class Ast {
     public record AbmCallExprNode(SourceSpan location, String name, List<ExprNode> args) implements ExprNode {}
     public record PlaceholderExprNode(SourceSpan location) implements ExprNode {}
     public record TernaryExprNode(SourceSpan location, ExprNode condition, ExprNode thenExpr, ExprNode elseExpr) implements ExprNode {}
+    public record NewExprNode(SourceSpan location, String typeName) implements ExprNode {}
 
     // --- Statement hierarchy ---
     public sealed interface StatementNode
@@ -51,7 +52,12 @@ public final class Ast {
     }
 
     // --- Types used by both decls and statements ---
-    public record DataTypeNode(SourceSpan location, String baseTypeName, int pointerLevel) {}
+    public record DataTypeNode(SourceSpan location, String baseTypeName, int pointerLevel, boolean isPointer) {
+        // Backward-compatible 3-arg constructor: defaults isPointer to false (for arrays and non-pointer types)
+        public DataTypeNode(SourceSpan location, String baseTypeName, int pointerLevel) {
+            this(location, baseTypeName, pointerLevel, false);
+        }
+    }
     public record DeclaratorNode(SourceSpan location, String name, List<Integer> arrayDims, ExprNode init) {}
     public record VarDeclNode(SourceSpan location, DataTypeNode dataType, List<DeclaratorNode> declarators) {}
     public record BlockNode(SourceSpan location, List<VarDeclNode> varDecls, List<StatementNode> statements) {}

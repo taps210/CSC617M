@@ -18,6 +18,7 @@ public enum TokenType {
     SELF,
     NULL,
     ASSERT,
+    NEW,
 
     // Operators
     PLUS, MINUS, STAR, SLASH, MOD,
@@ -26,6 +27,7 @@ public enum TokenType {
     EQEQ, NEQ, LT, LTE, GT, GTE,
     ANDAND, OROR, NOT,
     QMARK, COLON,
+    ARROW,
 
     // Punctuation
     SEMI, COMMA, DOT,

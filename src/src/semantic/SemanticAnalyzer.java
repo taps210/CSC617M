@@ -17,6 +17,8 @@ public class SemanticAnalyzer {
     private int agentDepth = 0;
     /** agentName → (methodName → Symbol) — for resolving MethodCallExprNode. */
     private final java.util.Map<String, java.util.Map<String, SymbolTable.Symbol>> agentMethodTable = new java.util.HashMap<>();
+    /** agentName → (fieldName → DataTypeNode) — for resolving field access on pointers. */
+    private final java.util.Map<String, java.util.Map<String, DataTypeNode>> agentFieldTable = new java.util.HashMap<>();
     private DataTypeNode currentReturnType = null;
     private boolean logEnabled = false;
 
@@ -126,7 +128,18 @@ public class SemanticAnalyzer {
             // Name already registered in pre-pass; just validate body
             table.pushScope("agent:" + a.name());
             agentDepth++;
-            for (VarDeclNode f : a.fields()) visitVarDecl(f);
+            // Cache agent fields for pointer field access resolution
+            java.util.Map<String, DataTypeNode> fieldMap = new java.util.HashMap<>();
+            for (VarDeclNode f : a.fields()) {
+                visitVarDecl(f);
+                // Also cache each field's type for resolveFieldOnAgent
+                for (DeclaratorNode d : f.declarators()) {
+                    int pointerLevel = f.dataType().pointerLevel() + d.arrayDims().size();
+                    DataTypeNode fullType = new DataTypeNode(f.dataType().location(), f.dataType().baseTypeName(), pointerLevel, f.dataType().isPointer());
+                    fieldMap.put(d.name(), fullType);
+                }
+            }
+            agentFieldTable.put(a.name(), fieldMap);
             // Register method signatures in agent scope so the update block and other methods can call them
             java.util.Map<String, SymbolTable.Symbol> methodMap = new java.util.HashMap<>();
             for (FuncDeclNode m : a.methods()) {
@@ -188,7 +201,8 @@ public class SemanticAnalyzer {
             else {
                 // Combine base dataType with declarator's arrayDims to get full type
                 int pointerLevel = n.dataType().pointerLevel() + d.arrayDims().size();
-                DataTypeNode fullType = new DataTypeNode(n.dataType().location(), n.dataType().baseTypeName(), pointerLevel);
+                boolean isPointer = n.dataType().isPointer();
+                DataTypeNode fullType = new DataTypeNode(n.dataType().location(), n.dataType().baseTypeName(), pointerLevel, isPointer);
                 table.define(SymbolTable.Symbol.variable(d.name(), fullType, d.location()));
             }
             if (d.init() != null) visitExpr(d.init());
@@ -203,7 +217,8 @@ public class SemanticAnalyzer {
             else {
                 // Combine base dataType with param's arrayDims to get full type
                 int pointerLevel = p.dataType().pointerLevel() + p.arrayDims().size();
-                DataTypeNode fullType = new DataTypeNode(p.dataType().location(), p.dataType().baseTypeName(), pointerLevel);
+                boolean isPointer = p.dataType().isPointer();
+                DataTypeNode fullType = new DataTypeNode(p.dataType().location(), p.dataType().baseTypeName(), pointerLevel, isPointer);
                 table.define(SymbolTable.Symbol.variable(p.name(), fullType, p.location()));
             }
         }
@@ -227,7 +242,8 @@ public class SemanticAnalyzer {
             else {
                 // Combine base dataType with param's arrayDims to get full type
                 int pointerLevel = p.dataType().pointerLevel() + p.arrayDims().size();
-                DataTypeNode fullType = new DataTypeNode(p.dataType().location(), p.dataType().baseTypeName(), pointerLevel);
+                boolean isPointer = p.dataType().isPointer();
+                DataTypeNode fullType = new DataTypeNode(p.dataType().location(), p.dataType().baseTypeName(), pointerLevel, isPointer);
                 table.define(SymbolTable.Symbol.variable(p.name(), fullType, p.location()));
             }
         }
@@ -405,6 +421,14 @@ public class SemanticAnalyzer {
             }
             return;
         }
+        if (e instanceof NewExprNode n) {
+            // Validate type exists as AGENT (already checked in typeOfExpr)
+            SymbolTable.Symbol sym = table.resolve(n.typeName());
+            if (sym == null || sym.kind != SymbolTable.Kind.AGENT) {
+                error(n.location(), "Undefined or non-agent type: " + n.typeName());
+            }
+            return;
+        }
         if (e instanceof CallExprNode n) {
             SymbolTable.Symbol sym = table.resolve(n.name());
             if (sym == null) error(n.location(), "Undefined function: " + n.name());
@@ -459,7 +483,7 @@ public class SemanticAnalyzer {
         }
         if (e instanceof BinaryExprNode n) {
             visitExpr(n.left());
-            if (!".".equals(n.op())) visitExpr(n.right());
+            if (!".".equals(n.op()) && !"->".equals(n.op())) visitExpr(n.right());
             return;
         }
         if (e instanceof UnaryExprNode n) { visitExpr(n.operand()); return; }
@@ -484,7 +508,7 @@ public class SemanticAnalyzer {
             if (v instanceof Boolean) return new DataTypeNode(n.location(), "bool", 0);
             return new DataTypeNode(n.location(), "int", 0);
         }
-        if (e instanceof NullExprNode n) return new DataTypeNode(n.location(), "void", 1);
+        if (e instanceof NullExprNode n) return new DataTypeNode(n.location(), "void", 1, true);
         if (e instanceof IdentExprNode n) {
             SymbolTable.Symbol s = table.resolve(n.name());
             return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "int", 0);
@@ -510,12 +534,34 @@ public class SemanticAnalyzer {
             switch (bn.op()) {
                 case ">", "<", ">=", "<=", "==", "!=", "&&", "||":
                     return new DataTypeNode(bn.location(), "bool", 0);
+                case "->":
+                    // Field access through pointer: ptr->field
+                    DataTypeNode ptrType = typeOfExpr(bn.left());
+                    if (!ptrType.isPointer()) {
+                        error(bn.location(), "'->' requires a pointer type; use '.' for direct access");
+                        return new DataTypeNode(bn.location(), "int", 0);
+                    }
+                    // Resolve field on the pointed-to agent type
+                    String baseType = ptrType.baseTypeName();
+                    String fieldName = bn.right() instanceof IdentExprNode ? ((IdentExprNode) bn.right()).name() : "";
+                    DataTypeNode fieldType = resolveFieldOnAgent(baseType, fieldName);
+                    return fieldType != null ? fieldType : new DataTypeNode(bn.location(), "int", 0);
             }
             return typeOfExpr(bn.left());
         }
         if (e instanceof UnaryExprNode un) return typeOfExpr(un.operand());
         if (e instanceof ParenExprNode p) return typeOfExpr(p.inner());
         if (e instanceof TernaryExprNode t) return typeOfExpr(t.thenExpr());
+        if (e instanceof NewExprNode n) {
+            // Validate type exists as AGENT
+            SymbolTable.Symbol sym = table.resolve(n.typeName());
+            if (sym == null || sym.kind != SymbolTable.Kind.AGENT) {
+                error(n.location(), "Undefined or non-agent type: " + n.typeName());
+                return new DataTypeNode(n.location(), "int", 0);
+            }
+            // new returns a pointer to the agent type
+            return new DataTypeNode(n.location(), n.typeName(), 1, true);
+        }
         if (e instanceof AbmCallExprNode n) {
             if ("neighbors".equals(n.name())) return new DataTypeNode(n.location(), "agent_list", 0);
             if ("rand".equals(n.name())) {
@@ -539,6 +585,17 @@ public class SemanticAnalyzer {
         if (e instanceof SelfFieldExprNode n) {
             SymbolTable.Symbol s = table.resolve(n.fieldName());
             return s != null && s.type != null ? s.type : new DataTypeNode(n.location(), "int", 0);
+        }
+        if (e instanceof BinaryExprNode bn && "->".equals(bn.op())) {
+            // Field assignment through pointer: ptr->field = value
+            DataTypeNode ptrType = typeOfExpr(bn.left());
+            if (!ptrType.isPointer()) {
+                error(bn.location(), "'->' requires a pointer type");
+                return null;
+            }
+            String baseType = ptrType.baseTypeName();
+            String fieldName = bn.right() instanceof IdentExprNode ? ((IdentExprNode) bn.right()).name() : "";
+            return resolveFieldOnAgent(baseType, fieldName);
         }
         return null;
     }
@@ -567,9 +624,10 @@ public class SemanticAnalyzer {
 
     /**
      * Type compatibility:
-     * - Exact match (including pointerLevel)
+     * - Exact match (including pointerLevel and isPointer flag)
      * - Numeric widening: int/float compatible when both are non-pointers
      * - null (void*) is assignable to any pointer type
+     * - Pointer types (isPointer=true) not compatible with array types (isPointer=false)
      */
     private static boolean typesCompatible(DataTypeNode expected, DataTypeNode actual) {
         if (expected == null || actual == null) return true;
@@ -578,19 +636,40 @@ public class SemanticAnalyzer {
         if ("agent_list".equals(actual.baseTypeName())) {
             // agent_list should only be assigned to agent arrays, not primitives
             // The expected type's pointer level should be 1 (array) and base type should be a known agent
-            return expected.pointerLevel() > 0;
+            return expected.pointerLevel() > 0 && !expected.isPointer();
+        }
+
+        // Pointers and arrays are distinguished by isPointer flag
+        if (expected.isPointer() != actual.isPointer()) {
+            // allow null (void*) to any pointer type
+            if (expected.isPointer() && actual.isPointer() && expected.pointerLevel() > 0 &&
+                actual.pointerLevel() > 0 && "void".equals(actual.baseTypeName())) return true;
+            return false;
         }
 
         if (expected.pointerLevel() != actual.pointerLevel()) {
             // allow null to any pointer type
-            if (expected.pointerLevel() > 0 && actual.pointerLevel() > 0 && "void".equals(actual.baseTypeName())) return true;
+            if (expected.isPointer() && actual.isPointer() && expected.pointerLevel() > 0 &&
+                actual.pointerLevel() > 0 && "void".equals(actual.baseTypeName())) return true;
             return false;
         }
         if (expected.baseTypeName().equals(actual.baseTypeName())) return true;
+        // Allow null (void*) to be assigned to any pointer type
+        if (expected.isPointer() && actual.isPointer() && "void".equals(actual.baseTypeName())) return true;
         if (expected.pointerLevel() > 0) return false;
         boolean expNum = "int".equals(expected.baseTypeName()) || "float".equals(expected.baseTypeName());
         boolean actNum = "int".equals(actual.baseTypeName()) || "float".equals(actual.baseTypeName());
         return expNum && actNum;
+    }
+
+    /**
+     * Resolve a field on an agent type by name.
+     * Returns the DataTypeNode for the field, or null if not found.
+     */
+    private DataTypeNode resolveFieldOnAgent(String agentName, String fieldName) {
+        java.util.Map<String, DataTypeNode> fields = agentFieldTable.get(agentName);
+        if (fields == null) return null;
+        return fields.get(fieldName);
     }
 
     private void error(SourceSpan loc, String message) {

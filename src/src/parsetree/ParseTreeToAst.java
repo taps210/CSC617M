@@ -158,7 +158,7 @@ public final class ParseTreeToAst {
         String base = baseTypeFrom(child(c, 0));
         int stars = 0;
         for (int i = 1; i < c.size(); i++) if (c.get(i).isTerminal() && c.get(i).token().type() == TokenType.STAR) stars++;
-        return new DataTypeNode(span(n), base, stars);
+        return new DataTypeNode(span(n), base, stars, stars > 0);  // isPointer=true when stars > 0
     }
 
     private static String baseTypeFrom(ParseTreeNode n) {
@@ -450,6 +450,11 @@ public final class ParseTreeToAst {
             return toPrimary(n);
         }
         if (n.kind() == ParseTreeKind.ATOM) return toAtom(n);
+        if (n.kind() == ParseTreeKind.NEW_EXPR) {
+            List<ParseTreeNode> c = n.children();
+            String typeName = c.isEmpty() ? "" : c.get(0).token().lexeme();
+            return new NewExprNode(span(n), typeName);
+        }
         if (n.kind() == ParseTreeKind.ABM_CALL_EXPR) return toAbmCallExpr(n);
         if (n.kind() == ParseTreeKind.CONSTANT) return toConstant(n);
         return null;
@@ -482,6 +487,10 @@ public final class ParseTreeToAst {
                     String field = identLexeme(c, i + 1);
                     e = new BinaryExprNode(span(n), e, ".", new IdentExprNode(span(n), field));
                     i++;
+                } else if (op.token().type() == TokenType.ARROW) {
+                    String field = identLexeme(c, i + 1);
+                    e = new BinaryExprNode(span(n), e, "->", new IdentExprNode(span(n), field));
+                    i++;
                 }
             }
         }
@@ -507,6 +516,10 @@ public final class ParseTreeToAst {
                 if (c.size() > 2) return new SelfFieldExprNode(span(n), c.get(2).token().lexeme());
                 return new SelfExprNode(span(n));
             }
+        }
+        if (first.kind() == ParseTreeKind.NEW_EXPR) {
+            String typeName = c.isEmpty() ? "" : (c.get(0).isTerminal() ? c.get(0).token().lexeme() : "");
+            return new NewExprNode(span(n), typeName);
         }
         if (first.kind() == ParseTreeKind.ABM_CALL_EXPR) return toAbmCallExpr(first);
         if (first.kind() == ParseTreeKind.EXPR || first.kind() == ParseTreeKind.COND_EXPR) return new ParenExprNode(span(n), toExpr(first));

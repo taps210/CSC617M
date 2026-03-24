@@ -57,6 +57,10 @@ public final class IrInterpreter {
     private String worldName;
     private int nextAgentId;
 
+    /** Heap management for pointer types. */
+    private final Map<Integer, HeapObject> heap = new HashMap<>();
+    private int nextObjectId = 1;
+
     /** Identifies an agent for destroy/neighbors. Stored in agent list and in lists returned by neighbors(). */
     public static final class AgentHandle {
         public final int id;
@@ -67,6 +71,34 @@ public final class IrInterpreter {
             this.id = id;
             this.typeName = typeName;
             this.store = store;
+        }
+    }
+
+    /** Wrapper for pointer values in the store. */
+    private static final class HeapPointer {
+        final int objectId;
+
+        HeapPointer(int objectId) {
+            this.objectId = objectId;
+        }
+
+        @Override
+        public String toString() {
+            return "#" + objectId;
+        }
+    }
+
+    /** One allocated object on the heap. */
+    private static final class HeapObject {
+        final int id;
+        final String typeName;
+        final Map<String, Object> fields = new HashMap<>();
+        int refCount = 1;
+        boolean freed = false;
+
+        HeapObject(int id, String typeName) {
+            this.id = id;
+            this.typeName = typeName;
         }
     }
 
@@ -230,6 +262,9 @@ public final class IrInterpreter {
         if (instr instanceof Instr.PrintInstr p)        return executePrint(p);
         if (instr instanceof Instr.AllocArrayInstr a)   return executeAllocArray(a);
         if (instr instanceof Instr.ArrayStoreInstr a)   return executeArrayStore(a);
+        if (instr instanceof Instr.HeapAllocInstr h)    return executeHeapAlloc(h);
+        if (instr instanceof Instr.HeapLoadInstr h)     return executeHeapLoad(h);
+        if (instr instanceof Instr.HeapStoreInstr h)    return executeHeapStore(h);
         if (instr instanceof Instr.SpawnInstr s)        return executeSpawn(s);
         if (instr instanceof Instr.MoveInstr m)         return executeMove(m);
         if (instr instanceof Instr.StepInstr)           return executeStep();
@@ -395,6 +430,38 @@ public final class IrInterpreter {
             int idx = toInt(get(a.index()));
             if (idx >= 0 && idx < arr.size()) arr.set(idx, get(a.value()));
         }
+        return true;
+    }
+
+    private boolean executeHeapAlloc(Instr.HeapAllocInstr h) {
+        HeapObject obj = new HeapObject(nextObjectId++, h.typeName());
+        // Initialize default fields (all to 0/null)
+        initDefaultFields(obj);
+        heap.put(obj.id, obj);
+        store.put(h.result(), new HeapPointer(obj.id));
+        return true;
+    }
+
+    private boolean executeHeapLoad(Instr.HeapLoadInstr h) {
+        HeapPointer ptr = (HeapPointer) get(h.ptr());
+        if (ptr == null) throw new RuntimeException("Null pointer dereference");
+        HeapObject obj = heap.get(ptr.objectId);
+        if (obj == null || obj.freed) throw new RuntimeException("Use-after-free");
+        store.put(h.result(), obj.fields.getOrDefault(h.fieldName(), 0));
+        return true;
+    }
+
+    private boolean executeHeapStore(Instr.HeapStoreInstr h) {
+        HeapPointer ptr = (HeapPointer) get(h.ptr());
+        if (ptr == null) throw new RuntimeException("Null pointer dereference");
+        HeapObject obj = heap.get(ptr.objectId);
+        if (obj == null || obj.freed) throw new RuntimeException("Use-after-free");
+        Object newVal = get(h.value());
+        Object oldVal = obj.fields.get(h.fieldName());
+        // Update refcounts if the field held a pointer
+        if (oldVal instanceof HeapPointer old) decRef(old.objectId);
+        if (newVal instanceof HeapPointer nw) incRef(nw.objectId);
+        obj.fields.put(h.fieldName(), newVal);
         return true;
     }
 
@@ -737,5 +804,40 @@ public final class IrInterpreter {
                 return line;
             }
         }
+    }
+
+    /** Helper to manage reference counting on store assignment. */
+    private void storeSet(String name, Object newVal) {
+        Object oldVal = store.get(name);
+        if (oldVal instanceof HeapPointer old) decRef(old.objectId);
+        if (newVal instanceof HeapPointer nw) incRef(nw.objectId);
+        store.put(name, newVal);
+    }
+
+    /** Increment reference count of a heap object. */
+    private void incRef(int objectId) {
+        HeapObject obj = heap.get(objectId);
+        if (obj != null) obj.refCount++;
+    }
+
+    /** Decrement reference count; free object if refCount reaches 0. */
+    private void decRef(int objectId) {
+        HeapObject obj = heap.get(objectId);
+        if (obj == null || obj.freed) return;
+        obj.refCount--;
+        if (obj.refCount <= 0) {
+            obj.freed = true;
+            // Recursively decRef any pointer-typed fields
+            for (Object v : obj.fields.values())
+                if (v instanceof HeapPointer nested) decRef(nested.objectId);
+            heap.remove(objectId);
+        }
+    }
+
+    /** Initialize default field values for a newly allocated heap object. */
+    private void initDefaultFields(HeapObject obj) {
+        // All fields default to 0 (numeric) or null (pointer/other)
+        // TODO: Could scan AST to get actual field types, but for now use 0
+        // The interpreter doesn't need to know actual field names/types
     }
 }

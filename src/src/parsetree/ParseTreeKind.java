@@ -71,6 +71,7 @@ public enum ParseTreeKind {
     PRIMARY,
     ATOM,
     ABM_CALL_EXPR,
+    NEW_EXPR,
     CONSTANT,
     EXPR_LIST,
 }

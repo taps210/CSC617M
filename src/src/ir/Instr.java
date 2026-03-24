@@ -10,6 +10,7 @@ public sealed interface Instr
         Instr.GotoInstr, Instr.IfGotoInstr, Instr.IfZeroGotoInstr, Instr.ParamInstr, Instr.CallInstr, Instr.ReturnInstr,
         Instr.ReadInstr, Instr.PrintInstr,
         Instr.AllocArrayInstr, Instr.ArrayStoreInstr,
+        Instr.HeapAllocInstr, Instr.HeapLoadInstr, Instr.HeapStoreInstr,
         Instr.SpawnInstr, Instr.MoveInstr, Instr.StepInstr, Instr.DestroyInstr, Instr.NeighborsInstr, Instr.AbmCallInstr,
         Instr.ZoneEnterInstr, Instr.AgentMethodCallInstr {
 
@@ -57,6 +58,15 @@ public sealed interface Instr
 
     /** arrayName[index] = value. */
     record ArrayStoreInstr(String arrayName, Operand index, Operand value) implements Instr {}
+
+    /** result = new typeName; allocate heap object. */
+    record HeapAllocInstr(String result, String typeName) implements Instr {}
+
+    /** result = (*ptr).fieldName; load field from heap object. */
+    record HeapLoadInstr(String result, Operand ptr, String fieldName) implements Instr {}
+
+    /** (*ptr).fieldName = value; store value into heap object field. */
+    record HeapStoreInstr(Operand ptr, String fieldName, Operand value) implements Instr {}
 
     /** spawn agentType(args). */
     record SpawnInstr(String agentType, List<Operand> args) implements Instr {}

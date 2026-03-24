@@ -1,0 +1,162 @@
+// Comprehensive Pointer Type Tests
+// Tests: allocation, field access, multiple pointers, reference counting, GC, debugger display
+
+agent Drop {
+    int x;
+    int y;
+    int z;
+
+    update {
+        // No update needed for pointer tests
+    }
+}
+
+agent Forager {
+    int x;
+
+    update {
+        // No update needed for pointer tests
+    }
+}
+
+// Test 1: Basic pointer allocation and field assignment
+void test1BasicAllocation() {
+    Drop* ptr;
+    {
+        print("=== Test 1: Basic Allocation ===");
+        ptr = new Drop();
+        ptr->x = 5;
+        print(ptr->x);  // Should print 5
+    }
+}
+
+// Test 2: Multiple pointers to same object
+void test2MultiplePointers() {
+    Drop* a;
+    Drop* b;
+    {
+        print("=== Test 2: Multiple Pointers ===");
+        a = new Drop();
+        a->x = 10;
+        b = a;
+        print(b->x);  // Should print 10
+        b->x = 20;
+        print(a->x);  // Should print 20 (same object)
+    }
+}
+
+// Test 3: Multiple independent objects
+void test3MultipleObjects() {
+    Drop* obj1;
+    Drop* obj2;
+    {
+        print("=== Test 3: Multiple Independent Objects ===");
+        obj1 = new Drop();
+        obj2 = new Drop();
+        obj1->x = 100;
+        obj2->x = 200;
+        print(obj1->x);  // Should print 100
+        print(obj2->x);  // Should print 200
+    }
+}
+
+// Test 4: Reassignment (garbage collection)
+void test4Reassignment() {
+    Drop* a;
+    {
+        print("=== Test 4: Reassignment (GC) ===");
+        a = new Drop();
+        a->x = 111;
+        print(a->x);  // Should print 111
+        a = new Drop();
+        a->x = 222;
+        print(a->x);  // Should print 222
+    }
+}
+
+// Test 5: Complex field updates
+void test5FieldUpdates() {
+    Drop* ptr;
+    {
+        print("=== Test 5: Field Updates ===");
+        ptr = new Drop();
+        ptr->x = 1;
+        ptr->y = 2;
+        ptr->z = 3;
+        print(ptr->x);
+        print(ptr->y);
+        print(ptr->z);
+        ptr->x = 10;
+        ptr->y = 20;
+        ptr->z = 30;
+        print(ptr->x);
+        print(ptr->y);
+        print(ptr->z);
+    }
+}
+
+// Test 6: Pointer in arithmetic
+void test6Arithmetic() {
+    Drop* ptr;
+    int sum;
+    {
+        print("=== Test 6: Arithmetic with Pointers ===");
+        ptr = new Drop();
+        ptr->x = 5;
+        ptr->y = 3;
+        sum = ptr->x + ptr->y;
+        print(sum);  // Should print 8
+        ptr->x = ptr->x * 2;
+        print(ptr->x);  // Should print 10
+    }
+}
+
+// Test 7: Conditional with pointers
+void test7Conditionals() {
+    Drop* ptr;
+    {
+        print("=== Test 7: Conditionals with Pointers ===");
+        ptr = new Drop();
+        ptr->x = 100;
+        if (ptr->x > 50) {
+            print(1);  // Should print 1
+        } else {
+            print(0);
+        }
+        ptr->x = 25;
+        if (ptr->x > 50) {
+            print(1);
+        } else {
+            print(0);  // Should print 0
+        }
+    }
+}
+
+// Test 8: Loop with pointer fields
+void test8Loops() {
+    Drop* ptr;
+    int i;
+    {
+        print("=== Test 8: Loops with Pointers ===");
+        ptr = new Drop();
+        ptr->x = 0;
+        i = 0;
+        while (i < 5) {
+            ptr->x = ptr->x + 1;
+            i = i + 1;
+        }
+        print(ptr->x);  // Should print 5
+    }
+}
+
+void main() {
+    test1BasicAllocation();
+    test2MultiplePointers();
+    test3MultipleObjects();
+    test4Reassignment();
+    test5FieldUpdates();
+    test6Arithmetic();
+    test7Conditionals();
+    test8Loops();
+    print("=== All Tests Completed ===");
+}

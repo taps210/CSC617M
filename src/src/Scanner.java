@@ -58,7 +58,8 @@ public final class Scanner {
             Map.entry("post", TokenType.POST),
             Map.entry("self", TokenType.SELF),
             Map.entry("null", TokenType.NULL),
-            Map.entry("assert", TokenType.ASSERT)
+            Map.entry("assert", TokenType.ASSERT),
+            Map.entry("new", TokenType.NEW)
     );
 
     // Stores entire program text in src
@@ -166,7 +167,11 @@ public final class Scanner {
             }
 
             case '+' -> { advance(); yield new Token(TokenType.PLUS, "+", null, startLine, startCol); }
-            case '-' -> { advance(); yield new Token(TokenType.MINUS, "-", null, startLine, startCol); }
+            case '-' -> {
+                advance();
+                if (match('>')) yield new Token(TokenType.ARROW, "->", null, startLine, startCol);
+                yield new Token(TokenType.MINUS, "-", null, startLine, startCol);
+            }
             case '*' -> { advance(); yield new Token(TokenType.STAR, "*", null, startLine, startCol); }
             case '/' -> { advance(); yield new Token(TokenType.SLASH, "/", null, startLine, startCol); }
             case '%' -> { advance(); yield new Token(TokenType.MOD, "%", null, startLine, startCol); }
