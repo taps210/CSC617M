@@ -1,0 +1,15 @@
+// Demonstrates lexical error recovery (scanner continues after errors)
+//
+// Expected IDE output (Errors panel) after Compile/Run:
+// LEXER errors (compilation will not run due to errors):
+// 4:13 Recovering: Replacing symbol "a" at column 15 with space
+// 5:15 Unknown symbol "|" (did you mean "||"?)
+// 6:15 Unknown symbol "#"
+
+void main() {
+    int x = 12a + 3;          // number + letter: recovery skips the 'a'
+    int y = 4 | 5;            // single '|' is invalid in this language (did you mean '||'?)
+    int z = 6 # 7;            // unknown symbol '#'
+
+    print(x, y, z);
+}
