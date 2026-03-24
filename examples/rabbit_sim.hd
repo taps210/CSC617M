@@ -1,0 +1,14 @@
+agent Rabbit {
+    int energy;
+
+    update {
+        print("Rabbit alive with energy", energy);
+        destroy(self);
+    }
+}
+
+void main() {
+    spawn Rabbit(5);
+    step();
+    print("Simulation step done");
+}

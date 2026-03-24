@@ -1,29 +1,25 @@
 // Pointer Error Tests
 // These test error conditions: type mismatch, null dereference, etc.
 
-agent Drop {
+agent Point {
     int x;
 
-    update {
-        // No update needed for error tests
-    }
+    update {}
 }
 
-agent Forager {
-    int x;
+agent Counter {
+    int value;
 
-    update {
-        // No update needed for error tests
-    }
+    update {}
 }
 
 // ERROR TEST 1: Type mismatch (should NOT compile)
 // Uncomment to test semantic error
 /*
 void testTypeMismatch() {
-    Forager* f;
+    Counter* c;
     {
-        f = new Drop();  // Type error: cannot assign Drop* to Forager*
+        c = new Point();  // Type error: cannot assign Point* to Counter*
         print("This should not compile");
     }
 }
@@ -31,7 +27,7 @@ void testTypeMismatch() {
 
 // ERROR TEST 2: Null pointer dereference (runtime error)
 void testNullDereference() {
-    Drop* ptr;
+    Point* ptr;
     {
         print("=== Null Dereference Test (expect runtime error) ===");
         ptr = null;
@@ -44,11 +40,11 @@ void testNullDereference() {
 // Uncomment to test semantic error
 /*
 void testTypeMismatch2() {
-    Drop* d;
-    Forager* f;
+    Point* p;
+    Counter* c;
     {
-        d = new Drop();
-        f = d;  // Type error: cannot assign Drop* to Forager*
+        p = new Point();
+        c = p;  // Type error: cannot assign Point* to Counter*
     }
 }
 */
