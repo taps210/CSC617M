@@ -11,9 +11,16 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import src.gui.model.Theme;
 
 import javax.swing.*;
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.File;
 import java.lang.reflect.Field;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Main IDE JFrame: editor tabs | output tabs, status bar.
@@ -35,6 +42,7 @@ public class HerdIDE extends JFrame {
     public HerdIDE() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 750);
+        setApplicationIcon();
 
         controller = new CompileController();
         editorPanel = new EditorPanel(controller);
@@ -119,6 +127,78 @@ public class HerdIDE extends JFrame {
         content.add(split, BorderLayout.CENTER);
         content.add(statusBar, BorderLayout.SOUTH);
         setContentPane(content);
+    }
+
+    private void setApplicationIcon() {
+        Image icon = loadIcon("assets/herd_logo_v2_chatgpt.png");
+        if (icon == null) return;
+
+        setIconImage(icon);
+        setIconImages(makeIconSizes(icon));
+        applyTaskbarIcon(icon);
+    }
+
+    private Image loadIcon(String relativePath) {
+        for (URL url : iconCandidates(relativePath)) {
+            try {
+                Image img = ImageIO.read(url);
+                if (img != null) return img;
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    private List<URL> iconCandidates(String relativePath) {
+        List<URL> urls = new ArrayList<>();
+
+        // 1) Packaged resource (works when assets are on the classpath).
+        URL resource = getClass().getClassLoader().getResource(relativePath);
+        if (resource != null) urls.add(resource);
+
+        // 2) Common dev run locations (works when running from IDE/terminal).
+        for (Path p : fileCandidates(relativePath)) {
+            try {
+                File f = p.toFile();
+                if (f.exists()) urls.add(f.toURI().toURL());
+            } catch (Exception ignored) {
+            }
+        }
+        return urls;
+    }
+
+    private List<Path> fileCandidates(String relativePath) {
+        List<Path> paths = new ArrayList<>();
+        Path cwd = Paths.get(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+
+        // Try cwd, then a few parents (handles running from build/ or src/).
+        Path base = cwd;
+        for (int i = 0; i < 6 && base != null; i++) {
+            paths.add(base.resolve(relativePath).normalize());
+            base = base.getParent();
+        }
+        return paths;
+    }
+
+    private List<Image> makeIconSizes(Image icon) {
+        return List.of(
+            icon.getScaledInstance(16, 16, Image.SCALE_SMOOTH),
+            icon.getScaledInstance(32, 32, Image.SCALE_SMOOTH),
+            icon.getScaledInstance(64, 64, Image.SCALE_SMOOTH),
+            icon.getScaledInstance(128, 128, Image.SCALE_SMOOTH)
+        );
+    }
+
+    private void applyTaskbarIcon(Image icon) {
+        try {
+            if (Taskbar.isTaskbarSupported()) {
+                Taskbar taskbar = Taskbar.getTaskbar();
+                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                    taskbar.setIconImage(icon);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void showFileMenu(JComponent anchor, int x, int y) {
