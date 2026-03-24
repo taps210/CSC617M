@@ -1,0 +1,11 @@
+int foo(int x) {
+int y = x + 10;
+return y;
+}
+
+void main() {
+int a = 5;
+int b = foo(a);
+print("a =", a);
+print("b =", b);
+}

@@ -1,0 +1,8 @@
+int compute(int a, int b, int c) {
+return a * b + c;
+}
+
+void main() {
+int result = compute(2 + 1, 4, 5);
+print("result =", result);
+}
