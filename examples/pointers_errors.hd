@@ -40,15 +40,15 @@ void testNullDereference() {
     }
 }
 
-// ERROR TEST 3: Pointer vs array type confusion
+// ERROR TEST 3: Type mismatch between pointer types
 // Uncomment to test semantic error
 /*
-void testPointerArrayConfusion() {
-    Drop* ptr;
-    Drop[] arr;
+void testTypeMismatch2() {
+    Drop* d;
+    Forager* f;
     {
-        ptr = new Drop();
-        arr = ptr;  // Type error: cannot assign Drop* to Drop[]
+        d = new Drop();
+        f = d;  // Type error: cannot assign Drop* to Forager*
     }
 }
 */

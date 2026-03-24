@@ -57,12 +57,77 @@ public class EditorPanel extends JPanel implements CompileListener {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) { run(); }
         });
+
+        // Cmd+/ (Mac) or Ctrl+/ to toggle line comments
+        editor.getInputMap(JComponent.WHEN_FOCUSED).put(
+                KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SLASH,
+                        java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "toggleComment");
+        editor.getActionMap().put("toggleComment", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) { toggleLineComment(); }
+        });
     }
 
     public void run() {
         errorHighlighter.clear();
         beforeRunHook.run();
         requestCompile(editor.getText());
+    }
+
+    private void toggleLineComment() {
+        javax.swing.text.Document doc = editor.getDocument();
+        String text = editor.getText();
+        int selStart = editor.getSelectionStart();
+        int selEnd = editor.getSelectionEnd();
+
+        // Find the line boundaries for the selection
+        int lineStart = text.lastIndexOf('\n', selStart - 1) + 1;
+        int lineEnd = text.indexOf('\n', selEnd);
+        if (lineEnd == -1) lineEnd = text.length();
+
+        // Get all selected lines
+        String[] lines = text.substring(lineStart, lineEnd).split("\n", -1);
+
+        // Determine if we should comment or uncomment: if ALL lines are commented, uncomment
+        boolean allCommented = true;
+        for (String line : lines) {
+            String trimmed = line.stripLeading();
+            if (!trimmed.isEmpty() && !trimmed.startsWith("//")) {
+                allCommented = false;
+                break;
+            }
+        }
+
+        // Build the replacement text
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append('\n');
+            if (allCommented) {
+                // Uncomment: remove first occurrence of "// " or "//"
+                int idx = lines[i].indexOf("//");
+                if (idx >= 0) {
+                    String after = lines[i].substring(idx + 2);
+                    if (after.startsWith(" ")) after = after.substring(1);
+                    sb.append(lines[i], 0, idx).append(after);
+                } else {
+                    sb.append(lines[i]);
+                }
+            } else {
+                // Comment: add "// " at the start of the line
+                sb.append("// ").append(lines[i]);
+            }
+        }
+
+        // Replace the text
+        try {
+            doc.remove(lineStart, lineEnd - lineStart);
+            doc.insertString(lineStart, sb.toString(), null);
+            // Restore selection over the modified lines
+            editor.setSelectionStart(lineStart);
+            editor.setSelectionEnd(lineStart + sb.length());
+        } catch (javax.swing.text.BadLocationException ex) {
+            // ignore
+        }
     }
 
     public void setBeforeRunHook(Runnable beforeRunHook) {

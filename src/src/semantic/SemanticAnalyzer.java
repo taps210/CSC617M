@@ -534,6 +534,11 @@ public class SemanticAnalyzer {
             switch (bn.op()) {
                 case ">", "<", ">=", "<=", "==", "!=", "&&", "||":
                     return new DataTypeNode(bn.location(), "bool", 0);
+                case "[]":
+                    // Array element access: reduce pointer level by 1
+                    DataTypeNode arrType = typeOfExpr(bn.left());
+                    int newLevel = Math.max(0, arrType.pointerLevel() - 1);
+                    return new DataTypeNode(bn.location(), arrType.baseTypeName(), newLevel);
                 case "->":
                     // Field access through pointer: ptr->field
                     DataTypeNode ptrType = typeOfExpr(bn.left());
