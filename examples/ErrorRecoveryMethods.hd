@@ -1,0 +1,19 @@
+// Error Recovery Methods Demo
+// Paste/open this in HerdIDE to show scanner recovery:
+// - number-with-letter recovery: `12a`
+// - single `|` recovery hinting `||`
+// - unknown symbol recovery: `#`
+//
+// Expected IDE output (Errors panel) after Compile/Run:
+// LEXER errors (compilation will not run due to errors):
+// 9:13 Recovering: Replacing symbol "a" at column 15 with space
+// 10:15 Unknown symbol "|" (did you mean "||"?)
+// 11:15 Unknown symbol "#"
+
+void main() {
+    int x = 12a + 3;          // recovery skips the 'a'
+    int y = 4 | 5;            // invalid here (did you mean '||'?)
+    int z = 6 # 7;            // unknown symbol
+
+    print(x, y, z);
+}

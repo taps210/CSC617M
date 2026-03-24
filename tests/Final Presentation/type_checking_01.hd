@@ -1,0 +1,11 @@
+int square(int n) {
+return n * n;
+}
+
+void main() {
+int a = 5;
+int b = square(a);
+bool ok = true;
+string msg = "answer";
+print(msg, b, ok);
+}

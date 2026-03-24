@@ -1,0 +1,9 @@
+// Demonstrates lexical error recovery (scanner continues after errors)
+
+void main() {
+    int x = 12a + 3;          // number + letter: recovery skips the 'a'
+    int y = 4 | 5;            // single '|' is invalid in this language (did you mean '||'?)
+    int z = 6 # 7;            // unknown symbol '#'
+
+    print(x, y, z);
+}

@@ -1,0 +1,8 @@
+int wrong() {
+return "hello";
+}
+
+void main() {
+int x = wrong();
+print(x);
+}
