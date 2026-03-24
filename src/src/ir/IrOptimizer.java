@@ -39,6 +39,24 @@ public final class IrOptimizer {
             int removedDeadTempCount
     ) {}
 
+    /**
+     * White-box optimization trace: returns IR snapshots after each pass.
+     * Useful for demos/rubrics that require before/after intermediate code.
+     */
+    public record OptimizeTrace(
+            FunctionIR original,
+            FunctionIR afterConstantFolding,
+            FunctionIR afterBranchSimplification,
+            FunctionIR afterDeadTempElimination,
+            int foldedCount,
+            int simplifiedBranchCount,
+            int removedDeadTempCount
+    ) {
+        public FunctionIR optimized() {
+            return afterDeadTempElimination;
+        }
+    }
+
     public static OptimizeResult optimizeFunction(FunctionIR function) {
         if (function == null || function.instructions().isEmpty()) {
             return new OptimizeResult(function, 0, 0, 0);
@@ -50,6 +68,34 @@ public final class IrOptimizer {
 
         FunctionIR optimized = new FunctionIR(function.name(), function.paramNames(), deadTempResult.instructions(), deadTempResult.lineTable());
         return new OptimizeResult(optimized, foldResult.foldedCount(), branchResult.simplifiedCount(), deadTempResult.removedCount());
+    }
+
+    public static OptimizeTrace optimizeFunctionWithTrace(FunctionIR function) {
+        if (function == null) {
+            return new OptimizeTrace(null, null, null, null, 0, 0, 0);
+        }
+        if (function.instructions().isEmpty()) {
+            return new OptimizeTrace(function, function, function, function, 0, 0, 0);
+        }
+
+        FoldResult foldResult = constantFold(function.instructions(), function.lineTable());
+        FunctionIR afterFold = new FunctionIR(function.name(), function.paramNames(), foldResult.instructions(), foldResult.lineTable());
+
+        BranchResult branchResult = simplifyBranchesAndDropUnreachable(afterFold.instructions(), afterFold.lineTable());
+        FunctionIR afterBranch = new FunctionIR(function.name(), function.paramNames(), branchResult.instructions(), branchResult.lineTable());
+
+        DeadTempResult deadTempResult = eliminateDeadTempAssignments(afterBranch.instructions(), afterBranch.lineTable());
+        FunctionIR afterDead = new FunctionIR(function.name(), function.paramNames(), deadTempResult.instructions(), deadTempResult.lineTable());
+
+        return new OptimizeTrace(
+                function,
+                afterFold,
+                afterBranch,
+                afterDead,
+                foldResult.foldedCount(),
+                branchResult.simplifiedCount(),
+                deadTempResult.removedCount()
+        );
     }
 
     private record FoldResult(List<Instr> instructions, List<Integer> lineTable, int foldedCount) {}

@@ -1,0 +1,20 @@
+// Demo: Optimization #1 Constant Folding
+// Run:
+//   ./gradlew run --args="--ir --opt-trace tests/rubric/opt_demo_01_constant_folding.hd"
+// What to point at in the trace:
+//   RAW shows t? = <const>, then t? = t? + t?, etc.
+//   AFTER #1 rewrites the binary/unary ops into AssignConst.
+
+void main() {
+    // Decls before statements
+    int a;
+    int b;
+    int c;
+
+    // Should fold into constants in IR:
+    a = 1 + 2 * 3;        // 1 + 6 -> 7 (depending on IR eval order)
+    b = (10 - 4) / 2;     // 6 / 2 -> 3
+    c = -(5 + 1);         // -(6) -> -6
+
+    print("a=", a, " b=", b, " c=", c);
+}

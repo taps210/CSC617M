@@ -1,0 +1,21 @@
+// Demo: Optimization #2 Constant Branch Simplification + Unreachable Elimination
+// Run:
+//   ./gradlew run --args="--ir --opt-trace tests/rubric/opt_demo_02_branch_unreachable.hd"
+// What to point at in the trace:
+//   RAW has: if t? == 0 goto L_else
+//   AFTER #2 removes/simplifies that jump (since condition is constant)
+//   and drops the unreachable else-block instructions.
+
+void main() {
+    // Decls before statements
+    bool flag = true;
+
+    if (flag) {
+        print("then branch");
+    } else {
+        // This whole block should become unreachable
+        print("else branch (should be removed in IR)");
+    }
+
+    print("after if");
+}
