@@ -44,35 +44,41 @@ public final class IrOptimizer {
             return new OptimizeResult(function, 0, 0, 0);
         }
 
-        FoldResult foldResult = constantFold(function.instructions());
-        BranchResult branchResult = simplifyBranchesAndDropUnreachable(foldResult.instructions());
-        DeadTempResult deadTempResult = eliminateDeadTempAssignments(branchResult.instructions());
+        FoldResult foldResult = constantFold(function.instructions(), function.lineTable());
+        BranchResult branchResult = simplifyBranchesAndDropUnreachable(foldResult.instructions(), foldResult.lineTable());
+        DeadTempResult deadTempResult = eliminateDeadTempAssignments(branchResult.instructions(), branchResult.lineTable());
 
-        FunctionIR optimized = new FunctionIR(function.name(), function.paramNames(), deadTempResult.instructions());
+        FunctionIR optimized = new FunctionIR(function.name(), function.paramNames(), deadTempResult.instructions(), deadTempResult.lineTable());
         return new OptimizeResult(optimized, foldResult.foldedCount(), branchResult.simplifiedCount(), deadTempResult.removedCount());
     }
 
-    private record FoldResult(List<Instr> instructions, int foldedCount) {}
-    private record BranchResult(List<Instr> instructions, int simplifiedCount) {}
-    private record DeadTempResult(List<Instr> instructions, int removedCount) {}
+    private record FoldResult(List<Instr> instructions, List<Integer> lineTable, int foldedCount) {}
+    private record BranchResult(List<Instr> instructions, List<Integer> lineTable, int simplifiedCount) {}
+    private record DeadTempResult(List<Instr> instructions, List<Integer> lineTable, int removedCount) {}
 
     // -------- Optimization #1 --------
-    private static FoldResult constantFold(List<Instr> instructions) {
+    private static FoldResult constantFold(List<Instr> instructions, List<Integer> lineTable) {
         Map<String, Object> knownConstants = new HashMap<>();
         List<Instr> out = new ArrayList<>(instructions.size());
+        List<Integer> outLines = new ArrayList<>(instructions.size());
         int folded = 0;
 
-        for (Instr ins : instructions) {
+        for (int i = 0; i < instructions.size(); i++) {
+            Instr ins = instructions.get(i);
+            int line = i < lineTable.size() ? lineTable.get(i) : -1;
+
             // Control-flow joins/splits break linear constant propagation assumptions.
             if (ins instanceof Instr.LabelInstr) {
                 knownConstants.clear();
                 out.add(ins);
+                outLines.add(line);
                 continue;
             }
 
             if (ins instanceof Instr.AssignConst a) {
                 knownConstants.put(a.result(), a.value());
                 out.add(ins);
+                outLines.add(line);
                 continue;
             }
 
@@ -80,10 +86,12 @@ public final class IrOptimizer {
                 Object srcConst = resolveConst(a.source(), knownConstants);
                 if (srcConst != null) {
                     out.add(new Instr.AssignConst(a.result(), srcConst));
+                    outLines.add(line);
                     knownConstants.put(a.result(), srcConst);
                     folded++;
                 } else {
                     out.add(ins);
+                    outLines.add(line);
                     knownConstants.remove(a.result());
                 }
                 continue;
@@ -94,10 +102,12 @@ public final class IrOptimizer {
                 if (operandConst != null) {
                     Object result = evalUnary(a.op(), operandConst);
                     out.add(new Instr.AssignConst(a.result(), result));
+                    outLines.add(line);
                     knownConstants.put(a.result(), result);
                     folded++;
                 } else {
                     out.add(ins);
+                    outLines.add(line);
                     knownConstants.remove(a.result());
                 }
                 continue;
@@ -109,10 +119,12 @@ public final class IrOptimizer {
                 if (leftConst != null && rightConst != null) {
                     Object result = evalBinary(leftConst, a.op(), rightConst);
                     out.add(new Instr.AssignConst(a.result(), result));
+                    outLines.add(line);
                     knownConstants.put(a.result(), result);
                     folded++;
                 } else {
                     out.add(ins);
+                    outLines.add(line);
                     knownConstants.remove(a.result());
                 }
                 continue;
@@ -120,6 +132,7 @@ public final class IrOptimizer {
 
             if (ins instanceof Instr.IfGotoInstr || ins instanceof Instr.IfZeroGotoInstr || ins instanceof Instr.GotoInstr) {
                 out.add(ins);
+                outLines.add(line);
                 knownConstants.clear();
                 continue;
             }
@@ -127,29 +140,36 @@ public final class IrOptimizer {
             // If an instruction writes to a tracked symbol, drop stale constant info.
             invalidateWrittenSymbols(ins, knownConstants);
             out.add(ins);
+            outLines.add(line);
         }
 
-        return new FoldResult(out, folded);
+        return new FoldResult(out, outLines, folded);
     }
 
     // -------- Optimization #2 --------
-    private static BranchResult simplifyBranchesAndDropUnreachable(List<Instr> instructions) {
+    private static BranchResult simplifyBranchesAndDropUnreachable(List<Instr> instructions, List<Integer> lineTable) {
         Map<String, Object> knownConstants = new HashMap<>();
         List<Instr> simplified = new ArrayList<>(instructions.size());
+        List<Integer> simplifiedLines = new ArrayList<>(instructions.size());
         int simplifiedCount = 0;
 
-        for (Instr ins : instructions) {
+        for (int i = 0; i < instructions.size(); i++) {
+            Instr ins = instructions.get(i);
+            int line = i < lineTable.size() ? lineTable.get(i) : -1;
+
             // Control-flow joins/splits invalidate linear constant facts.
             // This keeps branch simplification conservative and loop-safe.
             if (ins instanceof Instr.LabelInstr) {
                 knownConstants.clear();
                 simplified.add(ins);
+                simplifiedLines.add(line);
                 continue;
             }
 
             if (ins instanceof Instr.AssignConst a) {
                 knownConstants.put(a.result(), a.value());
                 simplified.add(ins);
+                simplifiedLines.add(line);
                 continue;
             }
             if (ins instanceof Instr.AssignCopy a) {
@@ -157,16 +177,19 @@ public final class IrOptimizer {
                 if (c != null) knownConstants.put(a.result(), c);
                 else knownConstants.remove(a.result());
                 simplified.add(ins);
+                simplifiedLines.add(line);
                 continue;
             }
             if (ins instanceof Instr.AssignUnary a) {
                 knownConstants.remove(a.result());
                 simplified.add(ins);
+                simplifiedLines.add(line);
                 continue;
             }
             if (ins instanceof Instr.AssignBinary a) {
                 knownConstants.remove(a.result());
                 simplified.add(ins);
+                simplifiedLines.add(line);
                 continue;
             }
 
@@ -180,6 +203,7 @@ public final class IrOptimizer {
                 } else {
                     simplified.add(ins);
                 }
+                simplifiedLines.add(line);
                 knownConstants.clear();
                 continue;
             }
@@ -194,26 +218,29 @@ public final class IrOptimizer {
                 } else {
                     simplified.add(ins);
                 }
+                simplifiedLines.add(line);
                 knownConstants.clear();
                 continue;
             }
 
             if (ins instanceof Instr.GotoInstr) {
                 simplified.add(ins);
+                simplifiedLines.add(line);
                 knownConstants.clear();
                 continue;
             }
 
             invalidateWrittenSymbols(ins, knownConstants);
             simplified.add(ins);
+            simplifiedLines.add(line);
         }
 
-        List<Instr> reachableOnly = dropUnreachableInstructions(simplified);
-        return new BranchResult(reachableOnly, simplifiedCount);
+        BranchResult dropResult = dropUnreachableInstructions(simplified, simplifiedLines);
+        return new BranchResult(dropResult.instructions(), dropResult.lineTable(), simplifiedCount);
     }
 
-    private static List<Instr> dropUnreachableInstructions(List<Instr> instructions) {
-        if (instructions.isEmpty()) return instructions;
+    private static BranchResult dropUnreachableInstructions(List<Instr> instructions, List<Integer> lineTable) {
+        if (instructions.isEmpty()) return new BranchResult(instructions, lineTable, 0);
         Map<String, Integer> labels = new HashMap<>();
         for (int i = 0; i < instructions.size(); i++) {
             if (instructions.get(i) instanceof Instr.LabelInstr l) {
@@ -224,10 +251,15 @@ public final class IrOptimizer {
         Set<Integer> reachable = new HashSet<>();
         markReachable(0, instructions, labels, reachable);
         List<Instr> out = new ArrayList<>(reachable.size());
+        List<Integer> outLines = new ArrayList<>(reachable.size());
         for (int i = 0; i < instructions.size(); i++) {
-            if (reachable.contains(i)) out.add(instructions.get(i));
+            if (reachable.contains(i)) {
+                out.add(instructions.get(i));
+                int line = i < lineTable.size() ? lineTable.get(i) : -1;
+                outLines.add(line);
+            }
         }
-        return out;
+        return new BranchResult(out, outLines, 0);
     }
 
     private static void markReachable(int start,
@@ -264,14 +296,16 @@ public final class IrOptimizer {
     }
 
     // -------- Optimization #3 --------
-    private static DeadTempResult eliminateDeadTempAssignments(List<Instr> instructions) {
+    private static DeadTempResult eliminateDeadTempAssignments(List<Instr> instructions, List<Integer> lineTable) {
         Set<String> live = new HashSet<>();
         List<Instr> keptReversed = new ArrayList<>(instructions.size());
+        List<Integer> keptLinesReversed = new ArrayList<>(instructions.size());
         int removed = 0;
 
         for (int i = instructions.size() - 1; i >= 0; i--) {
             Instr ins = instructions.get(i);
             String def = definedSymbol(ins);
+            int line = i < lineTable.size() ? lineTable.get(i) : -1;
 
             if (def != null && isTempName(def) && isPureTempDef(ins) && !live.contains(def)) {
                 removed++;
@@ -279,12 +313,14 @@ public final class IrOptimizer {
             }
 
             keptReversed.add(ins);
+            keptLinesReversed.add(line);
             if (def != null) live.remove(def);
             live.addAll(usedSymbols(ins));
         }
 
         Collections.reverse(keptReversed);
-        return new DeadTempResult(keptReversed, removed);
+        Collections.reverse(keptLinesReversed);
+        return new DeadTempResult(keptReversed, keptLinesReversed, removed);
     }
 
     private static String definedSymbol(Instr ins) {

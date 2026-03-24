@@ -48,6 +48,8 @@ public class CompileController {
     }
 
     private CompileResult lastResult;
+    private List<FunctionIR> lastIrFuncs;
+    private ProgramNode lastAst;
     private final List<CompileListener> listeners = new ArrayList<>();
     private String runtimeInput = "";
     private RuntimeEventListener runtimeEventListener;
@@ -67,6 +69,14 @@ public class CompileController {
 
     public CompileResult getLastResult() {
         return lastResult;
+    }
+
+    public List<FunctionIR> getLastIrFuncs() {
+        return lastIrFuncs;
+    }
+
+    public ProgramNode getLastAst() {
+        return lastAst;
     }
 
     public synchronized void setRuntimeEventListener(RuntimeEventListener runtimeEventListener) {
@@ -202,6 +212,9 @@ public class CompileController {
                     optimized.add(IrOptimizer.optimizeFunction(f).function());
                 }
                 irFuncs = optimized;
+                // Cache IR and AST for debugger
+                lastIrFuncs = irFuncs;
+                lastAst = ast.get();
                 StringBuilder irSb = new StringBuilder();
                 StringBuilder cfgSb = new StringBuilder();
                 for (FunctionIR f : irFuncs) {
@@ -214,6 +227,8 @@ public class CompileController {
                 cfgText = Optional.of(cfgSb.toString());
             } catch (Exception e) {
                 allErrors.add(new CompileError(0, 0, e.getMessage(), CompileError.Source.IR, CompileError.Severity.ERROR));
+                lastIrFuncs = null;
+                lastAst = null;
             }
             metrics.irTimeNs = System.nanoTime() - ir0;
         }

@@ -26,8 +26,10 @@ public final class IrBuilder {
     public  static final String FN_PREFIX_AGENTMETHOD  = "agentmethod_";
 
     private final List<Instr> instructions = new ArrayList<>();
+    private final List<Integer> lineTable = new ArrayList<>();
     private int tempCounter = 0;
     private int labelCounter = 0;
+    private int currentLine = 0;
     /** (breakLabel, continueLabel) for current loop. */
     private final Deque<String[]> loopLabels = new LinkedList<>();
     /** Const name → literal value, for inline ConstOperand injection. */
@@ -51,12 +53,12 @@ public final class IrBuilder {
             IrBuilder b = new IrBuilder(constValues);
             b.buildFunctionBody(f.name(), f.body());
             List<String> paramNames = f.params().stream().map(p -> p.name()).toList();
-            out.add(new FunctionIR(f.name(), paramNames, new ArrayList<>(b.instructions)));
+            out.add(new FunctionIR(f.name(), paramNames, new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
         }
         if (program.main() != null) {
             IrBuilder b = new IrBuilder(constValues);
             b.buildFunctionBody("main", program.main().body());
-            out.add(new FunctionIR("main", List.of(), new ArrayList<>(b.instructions)));
+            out.add(new FunctionIR("main", List.of(), new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
         }
         for (var td : program.typeDecls()) {
             if (td instanceof AgentDeclNode a) {
@@ -70,7 +72,7 @@ public final class IrBuilder {
                     b.currentAgentName = a.name();
                     b.currentAgentMethodNames = methodNames;
                     b.buildFunctionBody(updateName, a.updateBlock());
-                    out.add(new FunctionIR(updateName, List.of(), new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR(updateName, List.of(), new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
                 }
                 // Compile agent methods
                 for (FuncDeclNode m : a.methods()) {
@@ -80,7 +82,7 @@ public final class IrBuilder {
                     b.currentAgentName = a.name();
                     b.currentAgentMethodNames = methodNames;
                     b.buildFunctionBody(methodIrName, m.body());
-                    out.add(new FunctionIR(methodIrName, paramNames, new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR(methodIrName, paramNames, new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
                 }
             }
             if (td instanceof AgentDeclNode a) {
@@ -88,7 +90,7 @@ public final class IrBuilder {
                     String zoneName = FN_PREFIX_ZONE + a.name() + "_" + z.name();
                     IrBuilder b = new IrBuilder(constValues);
                     b.buildZoneBody(z.condition(), z.targetIdent(), z.block());
-                    out.add(new FunctionIR(zoneName, List.of(), new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR(zoneName, List.of(), new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
                 }
             }
             if (td instanceof WorldDeclNode w) {
@@ -96,13 +98,13 @@ public final class IrBuilder {
                     String preName = FN_PREFIX_WORLD + w.name() + FN_SUFFIX_PRE;
                     IrBuilder b = new IrBuilder(constValues);
                     b.buildFunctionBody(preName, w.preBlock());
-                    out.add(new FunctionIR(preName, List.of(), new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR(preName, List.of(), new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
                 }
                 if (w.postBlock() != null) {
                     String postName = FN_PREFIX_WORLD + w.name() + FN_SUFFIX_POST;
                     IrBuilder b = new IrBuilder(constValues);
                     b.buildFunctionBody(postName, w.postBlock());
-                    out.add(new FunctionIR(postName, List.of(), new ArrayList<>(b.instructions)));
+                    out.add(new FunctionIR(postName, List.of(), new ArrayList<>(b.instructions), new ArrayList<>(b.lineTable)));
                 }
             }
         }
@@ -119,9 +121,11 @@ public final class IrBuilder {
 
     private void emit(Instr i) {
         instructions.add(i);
+        lineTable.add(currentLine);
     }
 
     private void buildZoneBody(ExprNode radiusExpr, String targetType, BlockNode body) {
+        currentLine = radiusExpr.location().line();
         Operand radius = genExpr(radiusExpr);
         String LEnd = nextLabel();
         emit(new Instr.ZoneEnterInstr(radius, targetType, LEnd));
@@ -132,6 +136,7 @@ public final class IrBuilder {
     private void buildFunctionBody(String funcName, BlockNode body) {
         if (body == null) return;
         for (VarDeclNode v : body.varDecls()) {
+            currentLine = v.location().line();
             for (DeclaratorNode d : v.declarators()) {
                 if (!d.arrayDims().isEmpty()) {
                     int size = d.arrayDims().get(0);
@@ -143,6 +148,7 @@ public final class IrBuilder {
             }
         }
         for (StatementNode s : body.statements()) {
+            currentLine = s.location().line();
             genStmt(s);
         }
     }

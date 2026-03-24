@@ -1,0 +1,21 @@
+agent Drop {
+    int x, y;
+}
+
+agent Trader {
+    int x, y;
+    Drop drops[];
+
+    update {
+        drops = neighbors(self, 2);
+        if (drops.length > 0) {
+            print("ok");
+        }
+    }
+}
+
+world main {
+}
+
+void main() {
+}

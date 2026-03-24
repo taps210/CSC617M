@@ -2,6 +2,7 @@ package src.gui.output;
 
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
+import src.gui.debug.DebuggerPanel;
 
 import javax.swing.*;
 import java.awt.Dimension;
@@ -18,6 +19,7 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
     private final CfgOutputPanel cfgPanel;
     private final ErrorsPanel errorsPanel;
     private final InterpreterOutputPanel interpreterPanel;
+    private final DebuggerPanel debuggerPanel;
 
     private static final int MIN_PANEL_WIDTH = 320;
     private static final int MIN_PANEL_HEIGHT = 200;
@@ -31,10 +33,11 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
         cfgPanel         = new CfgOutputPanel();
         errorsPanel      = new ErrorsPanel();
         interpreterPanel = new InterpreterOutputPanel();
+        debuggerPanel    = new DebuggerPanel();
 
         for (JComponent p : new JComponent[]{
                 scannerPanel, parserPanel, analyzePanel, semanticPanel,
-                irPanel, cfgPanel, errorsPanel, interpreterPanel}) {
+                irPanel, cfgPanel, errorsPanel, interpreterPanel, debuggerPanel}) {
             p.setMinimumSize(new Dimension(MIN_PANEL_WIDTH, MIN_PANEL_HEIGHT));
         }
 
@@ -46,6 +49,7 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
         addTab("CFG",      cfgPanel);
         addTab("Errors",   errorsPanel);
         addTab("Output",   interpreterPanel);
+        addTab("Debug",    debuggerPanel);
     }
 
     @Override
@@ -68,4 +72,5 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
     public CfgOutputPanel getCfgPanel()                 { return cfgPanel; }
     public ErrorsPanel getErrorsPanel()                 { return errorsPanel; }
     public InterpreterOutputPanel getInterpreterPanel() { return interpreterPanel; }
+    public DebuggerPanel getDebuggerPanel()             { return debuggerPanel; }
 }

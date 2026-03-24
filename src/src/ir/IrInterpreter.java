@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +47,8 @@ public final class IrInterpreter {
     private final InputStream in;
     private final BufferedReader inputReader;
     private final PrintStream out;
+    private final DebugHook debugHook;
+    private final Deque<DebugFrame> debugStack = new ArrayDeque<>();
 
     /** ABM runtime state (used when program != null). */
     private final List<AgentHandle> agents = new ArrayList<>();
@@ -67,14 +71,19 @@ public final class IrInterpreter {
     }
 
     public IrInterpreter(List<FunctionIR> program, InputStream in, PrintStream out) {
-        this(program, null, in, out);
+        this(program, null, in, out, null);
     }
 
     public IrInterpreter(List<FunctionIR> funcs, Ast.ProgramNode program, InputStream in, PrintStream out) {
+        this(funcs, program, in, out, null);
+    }
+
+    public IrInterpreter(List<FunctionIR> funcs, Ast.ProgramNode program, InputStream in, PrintStream out, DebugHook debugHook) {
         this.program = program;
         this.in = in != null ? in : System.in;
         this.inputReader = new BufferedReader(new InputStreamReader(this.in));
         this.out = out != null ? out : System.out;
+        this.debugHook = debugHook;
         for (FunctionIR f : funcs) {
             functions.put(f.name(), f);
         }
@@ -134,6 +143,7 @@ public final class IrInterpreter {
     /** If initialStore != null, use it (for world_* / update_*); otherwise create fresh store and bind params. */
     private void runFunction(FunctionIR func, List<Object> args, Map<String, Object> initialStore) {
         List<Instr> instructions = func.instructions();
+        List<Integer> lineTable = func.lineTable();
         if (instructions.isEmpty()) return;
 
         Map<String, Object> prevStore = store;
@@ -154,9 +164,25 @@ public final class IrInterpreter {
         paramList.clear();
         returnValue = null;
 
+        // Push debug frame if debugging
+        if (debugHook != null) {
+            debugStack.push(new DebugFrame(func.name(), pc, -1, new HashMap<>(store)));
+        }
+
         try {
             while (pc >= 0 && pc < instructions.size()) {
                 Instr instr = instructions.get(pc);
+
+                // Call debug hook before instruction execution
+                if (debugHook != null) {
+                    int line = pc < lineTable.size() ? lineTable.get(pc) : -1;
+                    try {
+                        debugHook.beforeInstruction(func, pc, line, Collections.unmodifiableMap(store), Collections.unmodifiableList(new ArrayList<>(debugStack)));
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException("Debugger interrupted execution", e);
+                    }
+                }
+
                 boolean advance = execute(instr);
                 if (returnValue != null && (instr instanceof Instr.ReturnInstr)) {
                     break;
@@ -164,6 +190,11 @@ public final class IrInterpreter {
                 if (advance) pc++;
             }
         } finally {
+            // Pop debug frame if debugging
+            if (debugHook != null && !debugStack.isEmpty()) {
+                debugStack.pop();
+            }
+
             store = prevStore;
             currentFunc = prevFunc;
             pc = prevPc;

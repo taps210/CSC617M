@@ -2,6 +2,7 @@ package src.gui;
 
 import src.gui.core.CompileController;
 import src.gui.core.EditorFileHandler;
+import src.gui.debug.DebugController;
 import src.gui.editor.EditorPanel;
 import src.gui.output.OutputTabbedPane;
 import src.gui.output.StatusBar;
@@ -22,12 +23,14 @@ public class HerdIDE extends JFrame {
     private static final int TAB_FILE   = 0;
     private static final int TAB_EDITOR = 1;
     private static final int TAB_RUN    = 2;
+    private static final int TAB_DEBUG  = 3;
 
     private final CompileController controller;
     private final EditorPanel editorPanel;
     private final OutputTabbedPane outputTabs;
     private final StatusBar statusBar;
     private final EditorFileHandler fileHandler;
+    private final DebugController debugController;
 
     public HerdIDE() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -37,12 +40,27 @@ public class HerdIDE extends JFrame {
         editorPanel = new EditorPanel(controller);
         outputTabs = new OutputTabbedPane();
         statusBar = new StatusBar();
+        debugController = new DebugController(editorPanel, outputTabs.getDebuggerPanel());
 
         controller.addListener(editorPanel);
         controller.addListener(outputTabs);
         controller.addListener(statusBar);
-        editorPanel.setBeforeRunHook(() -> outputTabs.getInterpreterPanel().configureInputPrompts(editorPanel.getText()));
+        controller.addListener(debugController);  // Register debugger as compile listener
+        editorPanel.getLineNumberComponent().addBreakpointListener(debugController);  // Register breakpoint listener
+
+        // Wire debugger panel setups
+        outputTabs.getDebuggerPanel().setEditorPanel(editorPanel);
+        outputTabs.getDebuggerPanel().setLineNumberComponent(editorPanel.getLineNumberComponent());
+        outputTabs.getDebuggerPanel().setOnStepOverRequested(debugController::stepOver);
+        outputTabs.getDebuggerPanel().setOnStepIntoRequested(debugController::stepInto);
+        outputTabs.getDebuggerPanel().setOnStepOutRequested(debugController::stepOut);
+        outputTabs.getDebuggerPanel().setOnContinueRequested(debugController::resume);
+        outputTabs.getDebuggerPanel().setOnStopRequested(debugController::stopDebugSession);
+
         controller.setRuntimeEventListener(outputTabs.getInterpreterPanel());
+        controller.addListener(debugController);  // Register as runtime event listener
+
+        editorPanel.setBeforeRunHook(() -> outputTabs.getInterpreterPanel().configureInputPrompts(editorPanel.getText()));
         outputTabs.getInterpreterPanel().setOnStartRequested(editorPanel::run);
         outputTabs.getInterpreterPanel().setOnRestartRequested(() -> {
             controller.stopRuntime();
@@ -67,6 +85,7 @@ public class HerdIDE extends JFrame {
         editorTabs.addTab("File",   new JPanel());
         editorTabs.addTab("Editor", editorPanel);
         editorTabs.addTab("Run",    new JPanel());
+        editorTabs.addTab("Debug",  new JPanel());
         editorTabs.setSelectedIndex(TAB_EDITOR);
 
         editorTabs.addChangeListener(e -> {
@@ -77,6 +96,16 @@ public class HerdIDE extends JFrame {
                 SwingUtilities.invokeLater(() -> editorTabs.setSelectedIndex(TAB_EDITOR));
             } else if (sel == TAB_RUN) {
                 editorPanel.run();
+                SwingUtilities.invokeLater(() -> editorTabs.setSelectedIndex(TAB_EDITOR));
+            } else if (sel == TAB_DEBUG) {
+                var irFuncs = controller.getLastIrFuncs();
+                var ast = controller.getLastAst();
+                if (irFuncs != null && ast != null) {
+                    debugController.startDebugSession(irFuncs, ast);
+                } else {
+                    javax.swing.JOptionPane.showMessageDialog(HerdIDE.this,
+                        "Please compile successfully before debugging.");
+                }
                 SwingUtilities.invokeLater(() -> editorTabs.setSelectedIndex(TAB_EDITOR));
             }
         });
@@ -113,6 +142,7 @@ public class HerdIDE extends JFrame {
         im.put(KeyStroke.getKeyStroke("control O"), "file-open");
         im.put(KeyStroke.getKeyStroke("control S"), "file-save");
         im.put(KeyStroke.getKeyStroke("control ENTER"), "run");
+        im.put(KeyStroke.getKeyStroke("F5"), "debug");
         am.put("file-open", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { fileHandler.open(); }
         });
@@ -121,6 +151,18 @@ public class HerdIDE extends JFrame {
         });
         am.put("run", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { editorPanel.run(); }
+        });
+        am.put("debug", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                var irFuncs = controller.getLastIrFuncs();
+                var ast = controller.getLastAst();
+                if (irFuncs != null && ast != null) {
+                    debugController.startDebugSession(irFuncs, ast);
+                } else {
+                    javax.swing.JOptionPane.showMessageDialog(HerdIDE.this,
+                        "Please compile successfully before debugging.");
+                }
+            }
         });
     }
 

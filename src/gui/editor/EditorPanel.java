@@ -3,6 +3,7 @@ package src.gui.editor;
 import src.gui.core.CompileController;
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
+import src.gui.debug.DebugLineHighlighter;
 import src.gui.model.Theme;
 
 import javax.swing.*;
@@ -18,6 +19,7 @@ public class EditorPanel extends JPanel implements CompileListener {
     private final JTextPane editor;
     private final CompileController controller;
     private final ErrorHighlighter errorHighlighter;
+    private final DebugLineHighlighter debugLineHighlighter;
     private Runnable beforeRunHook = () -> {};
     private boolean compiling;
     private boolean pendingCompile;
@@ -35,6 +37,7 @@ public class EditorPanel extends JPanel implements CompileListener {
         editor.setMargin(new Insets(4, 4, 4, 4));
         new HerdSyntaxHighlighter(editor);
         this.errorHighlighter = new ErrorHighlighter(editor);
+        this.debugLineHighlighter = new DebugLineHighlighter(editor);
         new HoverTooltipManager(editor, controller);
 
         JScrollPane scroll = new JScrollPane(editor);
@@ -134,5 +137,23 @@ public class EditorPanel extends JPanel implements CompileListener {
             editor.setCaretPosition(offset);
             editor.requestFocusInWindow();
         } catch (Exception ignored) {}
+    }
+
+    public void highlightDebugLine(int line) {
+        debugLineHighlighter.highlightLine(line);
+    }
+
+    public void clearDebugHighlight() {
+        debugLineHighlighter.clear();
+    }
+
+    public LineNumberComponent getLineNumberComponent() {
+        // Get line number component from scroll pane row header
+        // This is a temporary implementation - the actual component is stored in the scroll pane
+        JScrollPane scroll = (JScrollPane) getComponent(0);
+        if (scroll != null && scroll.getRowHeader().getView() instanceof LineNumberComponent lnc) {
+            return lnc;
+        }
+        return null;
     }
 }
