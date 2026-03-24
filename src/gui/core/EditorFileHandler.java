@@ -5,12 +5,14 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Handles open, save, and save-as for the editor using .hd files.
- * Uses the parent frame for dialogs and notifies when the current file changes.
+ * open() opens a file in a new tab via openInTab callback.
+ * save()/saveAs() write the active tab's content to disk.
  */
 public class EditorFileHandler {
     private static final String HD_EXTENSION = "hd";
@@ -18,20 +20,24 @@ public class EditorFileHandler {
 
     private final JFrame parent;
     private final Supplier<String> getText;
-    private final Consumer<String> setText;
+    private final BiConsumer<File, String> openInTab;
+    private final Supplier<File> getCurrentFile;
+    private final Consumer<File> setCurrentFile;
     private final Runnable onFileChanged;
-    private File currentFile;
     private File lastDirectory;
 
-    public EditorFileHandler(JFrame parent, Supplier<String> getText, Consumer<String> setText, Runnable onFileChanged) {
+    public EditorFileHandler(JFrame parent,
+                              Supplier<String> getText,
+                              BiConsumer<File, String> openInTab,
+                              Supplier<File> getCurrentFile,
+                              Consumer<File> setCurrentFile,
+                              Runnable onFileChanged) {
         this.parent = parent;
         this.getText = getText;
-        this.setText = setText;
+        this.openInTab = openInTab;
+        this.getCurrentFile = getCurrentFile;
+        this.setCurrentFile = setCurrentFile;
         this.onFileChanged = onFileChanged;
-    }
-
-    public File getCurrentFile() {
-        return currentFile;
     }
 
     public void open() {
@@ -39,8 +45,7 @@ public class EditorFileHandler {
         if (f == null) return;
         try {
             String content = Files.readString(f.toPath());
-            setText.accept(content);
-            currentFile = f;
+            openInTab.accept(f, content);
             onFileChanged.run();
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(parent, "Could not open file: " + ex.getMessage(), "Open failed", JOptionPane.ERROR_MESSAGE);
@@ -48,23 +53,24 @@ public class EditorFileHandler {
     }
 
     public void save() {
-        if (currentFile != null) {
-            doSaveTo(currentFile);
+        File f = getCurrentFile.get();
+        if (f != null) {
+            if (doSaveTo(f)) onFileChanged.run();
             return;
         }
-        File f = showFileChooser(JFileChooser.SAVE_DIALOG);
-        if (f == null) return;
-        if (doSaveTo(f)) {
-            currentFile = f;
+        File dest = showFileChooser(JFileChooser.SAVE_DIALOG);
+        if (dest == null) return;
+        if (doSaveTo(dest)) {
+            setCurrentFile.accept(dest);
             onFileChanged.run();
         }
     }
 
     public void saveAs() {
-        File f = showFileChooser(JFileChooser.SAVE_DIALOG);
-        if (f == null) return;
-        if (doSaveTo(f)) {
-            currentFile = f;
+        File dest = showFileChooser(JFileChooser.SAVE_DIALOG);
+        if (dest == null) return;
+        if (doSaveTo(dest)) {
+            setCurrentFile.accept(dest);
             onFileChanged.run();
         }
     }

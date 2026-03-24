@@ -8,6 +8,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -248,17 +249,25 @@ public class DebuggerPanel extends JPanel {
     private void recordTrace(int line, Map<String, Object> store) {
         traceStep++;
 
-        // Build a compact summary including heap object fields
+        // Only show variables that actually changed since the last step
         StringBuilder changes = new StringBuilder();
 
         for (Map.Entry<String, Object> entry : store.entrySet()) {
-            if (entry.getKey().matches("t\\d+")) continue;
-            // If watching specific variables, only include those
-            if (!watchExpressions.isEmpty() && !watchExpressions.contains(entry.getKey())) continue;
+            String key = entry.getKey();
+            if (key.matches("t\\d+")) continue;
+            if (!watchExpressions.isEmpty() && !watchExpressions.contains(key)) continue;
+
+            Object val = entry.getValue();
+            Object prev = previousStore != null ? previousStore.get(key) : null;
+
+            // Emit only if new or changed
+            boolean changed = previousStore == null
+                    || !previousStore.containsKey(key)
+                    || !String.valueOf(val).equals(String.valueOf(prev));
+            if (!changed) continue;
 
             if (changes.length() > 0) changes.append(", ");
-            Object val = entry.getValue();
-            changes.append(entry.getKey()).append("=").append(formatValue(val));
+            changes.append(key).append("=").append(formatValue(val));
 
             // Expand pointer fields inline
             if (isHeapPointer(val) && lastHeap != null) {
@@ -277,7 +286,8 @@ public class DebuggerPanel extends JPanel {
             }
         }
 
-        traceModel.addRow(new Object[]{traceStep, line, changes.toString()});
+        previousStore = new HashMap<>(store);
+        traceModel.addRow(new Object[]{traceStep, line, changes.length() > 0 ? changes.toString() : "(no change)"});
 
         // Auto-scroll to bottom
         SwingUtilities.invokeLater(() -> {

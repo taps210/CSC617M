@@ -4,6 +4,7 @@ import src.gui.core.CompileController;
 import src.gui.core.EditorFileHandler;
 import src.gui.debug.DebugController;
 import src.gui.editor.EditorPanel;
+import src.gui.editor.EditorTabPane;
 import src.gui.output.OutputTabbedPane;
 import src.gui.output.StatusBar;
 
@@ -11,9 +12,9 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import src.gui.model.Theme;
 
 import javax.swing.*;
-import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.net.URL;
@@ -33,7 +34,7 @@ public class HerdIDE extends JFrame {
     private static final int TAB_DEBUG  = 3;
 
     private final CompileController controller;
-    private final EditorPanel editorPanel;
+    private final EditorTabPane editorTabPane;
     private final OutputTabbedPane outputTabs;
     private final StatusBar statusBar;
     private final EditorFileHandler fileHandler;
@@ -45,20 +46,20 @@ public class HerdIDE extends JFrame {
         setApplicationIcon();
 
         controller = new CompileController();
-        editorPanel = new EditorPanel(controller);
+        editorTabPane = new EditorTabPane(controller);
         outputTabs = new OutputTabbedPane();
         statusBar = new StatusBar();
-        debugController = new DebugController(editorPanel, outputTabs.getDebuggerPanel());
+        debugController = new DebugController(editorTabPane.getActivePanel(), outputTabs.getDebuggerPanel());
 
-        controller.addListener(editorPanel);
+        controller.addListener(editorTabPane);
         controller.addListener(outputTabs);
         controller.addListener(statusBar);
-        controller.addListener(debugController);  // Register debugger as compile listener
-        editorPanel.getLineNumberComponent().addBreakpointListener(debugController);  // Register breakpoint listener
+        controller.addListener(debugController);
+        editorTabPane.setBreakpointListener(debugController);
 
-        // Wire debugger panel setups
-        outputTabs.getDebuggerPanel().setEditorPanel(editorPanel);
-        outputTabs.getDebuggerPanel().setLineNumberComponent(editorPanel.getLineNumberComponent());
+        // Wire debugger panel
+        outputTabs.getDebuggerPanel().setEditorPanel(editorTabPane.getActivePanel());
+        outputTabs.getDebuggerPanel().setLineNumberComponent(editorTabPane.getActivePanel().getLineNumberComponent());
         outputTabs.getDebuggerPanel().setOnStepOverRequested(debugController::stepOver);
         outputTabs.getDebuggerPanel().setOnStepIntoRequested(debugController::stepInto);
         outputTabs.getDebuggerPanel().setOnStepOutRequested(debugController::stepOut);
@@ -66,32 +67,50 @@ public class HerdIDE extends JFrame {
         outputTabs.getDebuggerPanel().setOnStopRequested(debugController::stopDebugSession);
 
         controller.setRuntimeEventListener(outputTabs.getInterpreterPanel());
-        controller.addListener(debugController);  // Register as runtime event listener
+        controller.addListener(debugController);
 
-        editorPanel.setBeforeRunHook(() -> outputTabs.getInterpreterPanel().configureInputPrompts(editorPanel.getText()));
-        outputTabs.getInterpreterPanel().setOnStartRequested(editorPanel::run);
+        editorTabPane.setBeforeRunHook(() -> outputTabs.getInterpreterPanel().configureInputPrompts(editorTabPane.getActiveText()));
+        outputTabs.getInterpreterPanel().setOnStartRequested(editorTabPane::run);
         outputTabs.getInterpreterPanel().setOnRestartRequested(() -> {
             controller.stopRuntime();
-            editorPanel.run();
+            editorTabPane.run();
         });
         outputTabs.getInterpreterPanel().setOnStopRequested(controller::stopRuntime);
         outputTabs.getInterpreterPanel().setOnInputSubmitted(line -> {
-            if (!controller.isRuntimeActive() && !controller.isCompiling()) editorPanel.run();
+            if (!controller.isRuntimeActive() && !controller.isCompiling()) editorTabPane.run();
             controller.submitRuntimeInputLine(line);
         });
 
-        statusBar.attachToEditor(editorPanel.getEditor());
+        statusBar.attachToEditor(editorTabPane.getActivePanel().getEditor());
         outputTabs.getErrorsPanel().setOnErrorSelected(() -> {
             var err = outputTabs.getErrorsPanel().getSelectedError();
-            if (err != null) editorPanel.setCaretToLineAndColumn(err.line(), err.col());
+            EditorPanel active = editorTabPane.getActivePanel();
+            if (err != null && active != null) active.setCaretToLineAndColumn(err.line(), err.col());
         });
 
-        fileHandler = new EditorFileHandler(this, editorPanel::getText, editorPanel::setText, this::updateWindowTitle);
+        // Re-wire dynamic references when the active tab changes
+        editorTabPane.addTabChangeListener(() -> {
+            EditorPanel active = editorTabPane.getActivePanel();
+            if (active == null) return;
+            statusBar.attachToEditor(active.getEditor());
+            outputTabs.getDebuggerPanel().setEditorPanel(active);
+            outputTabs.getDebuggerPanel().setLineNumberComponent(active.getLineNumberComponent());
+            updateWindowTitle();
+        });
+
+        fileHandler = new EditorFileHandler(
+            this,
+            editorTabPane::getActiveText,
+            editorTabPane::openFileInTab,
+            editorTabPane::getActiveFile,
+            editorTabPane::setActiveFile,
+            this::updateWindowTitle
+        );
         updateWindowTitle();
 
         JTabbedPane editorTabs = new JTabbedPane();
         editorTabs.addTab("File",   new JPanel());
-        editorTabs.addTab("Editor", editorPanel);
+        editorTabs.addTab("Editor", editorTabPane);
         editorTabs.addTab("Run",    new JPanel());
         editorTabs.addTab("Debug",  new JPanel());
         editorTabs.setSelectedIndex(TAB_EDITOR);
@@ -103,7 +122,7 @@ public class HerdIDE extends JFrame {
                 showFileMenu(editorTabs, bounds.x, bounds.y + bounds.height);
                 SwingUtilities.invokeLater(() -> editorTabs.setSelectedIndex(TAB_EDITOR));
             } else if (sel == TAB_RUN) {
-                editorPanel.run();
+                editorTabPane.run();
                 SwingUtilities.invokeLater(() -> editorTabs.setSelectedIndex(TAB_EDITOR));
             } else if (sel == TAB_DEBUG) {
                 var irFuncs = controller.getLastIrFuncs();
@@ -111,7 +130,7 @@ public class HerdIDE extends JFrame {
                 if (irFuncs != null && ast != null) {
                     debugController.startDebugSession(irFuncs, ast);
                 } else {
-                    javax.swing.JOptionPane.showMessageDialog(HerdIDE.this,
+                    JOptionPane.showMessageDialog(HerdIDE.this,
                         "Please compile successfully before debugging.");
                 }
                 SwingUtilities.invokeLater(() -> editorTabs.setSelectedIndex(TAB_EDITOR));
@@ -132,7 +151,6 @@ public class HerdIDE extends JFrame {
     private void setApplicationIcon() {
         Image icon = loadIcon("assets/herd_logo_v2_chatgpt.png");
         if (icon == null) return;
-
         setIconImage(icon);
         setIconImages(makeIconSizes(icon));
         applyTaskbarIcon(icon);
@@ -141,28 +159,22 @@ public class HerdIDE extends JFrame {
     private Image loadIcon(String relativePath) {
         for (URL url : iconCandidates(relativePath)) {
             try {
-                Image img = ImageIO.read(url);
+                Image img = javax.imageio.ImageIO.read(url);
                 if (img != null) return img;
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         return null;
     }
 
     private List<URL> iconCandidates(String relativePath) {
         List<URL> urls = new ArrayList<>();
-
-        // 1) Packaged resource (works when assets are on the classpath).
         URL resource = getClass().getClassLoader().getResource(relativePath);
         if (resource != null) urls.add(resource);
-
-        // 2) Common dev run locations (works when running from IDE/terminal).
         for (Path p : fileCandidates(relativePath)) {
             try {
                 File f = p.toFile();
                 if (f.exists()) urls.add(f.toURI().toURL());
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         return urls;
     }
@@ -170,8 +182,6 @@ public class HerdIDE extends JFrame {
     private List<Path> fileCandidates(String relativePath) {
         List<Path> paths = new ArrayList<>();
         Path cwd = Paths.get(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
-
-        // Try cwd, then a few parents (handles running from build/ or src/).
         Path base = cwd;
         for (int i = 0; i < 6 && base != null; i++) {
             paths.add(base.resolve(relativePath).normalize());
@@ -193,25 +203,30 @@ public class HerdIDE extends JFrame {
         try {
             if (Taskbar.isTaskbarSupported()) {
                 Taskbar taskbar = Taskbar.getTaskbar();
-                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                    taskbar.setIconImage(icon);
-                }
+                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) taskbar.setIconImage(icon);
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private void showFileMenu(JComponent anchor, int x, int y) {
         JPopupMenu menu = new JPopupMenu();
+        JMenuItem newItem    = new JMenuItem("New Tab     Ctrl+T");
         JMenuItem openItem   = new JMenuItem("Open        Ctrl+O");
         JMenuItem saveItem   = new JMenuItem("Save        Ctrl+S");
         JMenuItem saveAsItem = new JMenuItem("Save As");
+        JMenuItem closeItem  = new JMenuItem("Close Tab   Ctrl+W");
+        newItem.addActionListener(e -> editorTabPane.newTab());
         openItem.addActionListener(e -> fileHandler.open());
         saveItem.addActionListener(e -> fileHandler.save());
         saveAsItem.addActionListener(e -> fileHandler.saveAs());
+        closeItem.addActionListener(e -> editorTabPane.closeActiveTab());
+        menu.add(newItem);
+        menu.addSeparator();
         menu.add(openItem);
         menu.add(saveItem);
         menu.add(saveAsItem);
+        menu.addSeparator();
+        menu.add(closeItem);
         menu.show(anchor, x, y);
     }
 
@@ -222,15 +237,23 @@ public class HerdIDE extends JFrame {
         im.put(KeyStroke.getKeyStroke("control O"), "file-open");
         im.put(KeyStroke.getKeyStroke("control S"), "file-save");
         im.put(KeyStroke.getKeyStroke("control ENTER"), "run");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_T, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "new-tab");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), "close-tab");
         im.put(KeyStroke.getKeyStroke("F5"), "debug");
-        am.put("file-open", new AbstractAction() {
+        am.put("file-open",  new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { fileHandler.open(); }
         });
-        am.put("file-save", new AbstractAction() {
+        am.put("file-save",  new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { fileHandler.save(); }
         });
         am.put("run", new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent e) { editorPanel.run(); }
+            @Override public void actionPerformed(ActionEvent e) { editorTabPane.run(); }
+        });
+        am.put("new-tab", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { editorTabPane.newTab(); }
+        });
+        am.put("close-tab", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { editorTabPane.closeActiveTab(); }
         });
         am.put("debug", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) {
@@ -239,7 +262,7 @@ public class HerdIDE extends JFrame {
                 if (irFuncs != null && ast != null) {
                     debugController.startDebugSession(irFuncs, ast);
                 } else {
-                    javax.swing.JOptionPane.showMessageDialog(HerdIDE.this,
+                    JOptionPane.showMessageDialog(HerdIDE.this,
                         "Please compile successfully before debugging.");
                 }
             }
@@ -247,15 +270,13 @@ public class HerdIDE extends JFrame {
     }
 
     private void updateWindowTitle() {
-        var f = fileHandler.getCurrentFile();
+        File f = editorTabPane.getActiveFile();
         setTitle(f == null ? "Herd IDE" : "Herd IDE — " + f.getName());
         outputTabs.getInterpreterPanel().loadSiblingInputPreset(f != null ? f.toPath() : null);
     }
 
     // Source - https://stackoverflow.com/a/56961097
     // Posted by George Z., modified by community. License - CC BY-SA 4.0
-    // Temporarily flips Frame's private "undecorated" field to bypass setOpacity's
-    // decoration guard, then restores it so native title bar behavior is unaffected.
     private static void applyOpacity(Frame frame, float opacity) {
         if (!GraphicsEnvironment.getLocalGraphicsEnvironment()
                 .getDefaultScreenDevice()
@@ -271,9 +292,7 @@ public class HerdIDE extends JFrame {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            try {
-                FlatDarkLaf.setup();
-            } catch (Exception ignored) {}
+            try { FlatDarkLaf.setup(); } catch (Exception ignored) {}
             HerdIDE ide = new HerdIDE();
             ide.setLocationRelativeTo(null);
             ide.setVisible(true);
