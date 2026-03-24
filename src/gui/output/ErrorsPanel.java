@@ -50,10 +50,17 @@ public class ErrorsPanel extends JPanel implements CompileListener {
         });
         table.getTableHeader().setReorderingAllowed(false);
 
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         javax.swing.table.TableColumnModel cm = table.getColumnModel();
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        cm.getColumn(0).setPreferredWidth(40);   // #
+        cm.getColumn(1).setPreferredWidth(80);   // Source
+        cm.getColumn(2).setPreferredWidth(50);   // Line
+        cm.getColumn(3).setPreferredWidth(50);   // Col
+        cm.getColumn(4).setPreferredWidth(600);  // Message
 
-        JScrollPane scroll = new JScrollPane(table);
+        JScrollPane scroll = new JScrollPane(table,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
         add(header, BorderLayout.NORTH);
