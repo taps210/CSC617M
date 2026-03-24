@@ -185,7 +185,12 @@ public class SemanticAnalyzer {
         }
         for (DeclaratorNode d : n.declarators()) {
             if (table.definedInCurrentScope(d.name())) error(d.location(), "Duplicate variable: " + d.name());
-            else table.define(SymbolTable.Symbol.variable(d.name(), n.dataType(), d.location()));
+            else {
+                // Combine base dataType with declarator's arrayDims to get full type
+                int pointerLevel = n.dataType().pointerLevel() + d.arrayDims().size();
+                DataTypeNode fullType = new DataTypeNode(n.dataType().location(), n.dataType().baseTypeName(), pointerLevel);
+                table.define(SymbolTable.Symbol.variable(d.name(), fullType, d.location()));
+            }
             if (d.init() != null) visitExpr(d.init());
         }
     }
@@ -195,7 +200,12 @@ public class SemanticAnalyzer {
         table.pushScope("func:" + n.name());
         for (ParamNode p : n.params()) {
             if (table.definedInCurrentScope(p.name())) error(p.location(), "Duplicate parameter: " + p.name());
-            else table.define(SymbolTable.Symbol.variable(p.name(), p.dataType(), p.location()));
+            else {
+                // Combine base dataType with param's arrayDims to get full type
+                int pointerLevel = p.dataType().pointerLevel() + p.arrayDims().size();
+                DataTypeNode fullType = new DataTypeNode(p.dataType().location(), p.dataType().baseTypeName(), pointerLevel);
+                table.define(SymbolTable.Symbol.variable(p.name(), fullType, p.location()));
+            }
         }
         DataTypeNode prevReturn = currentReturnType;
         currentReturnType = n.returnType();
@@ -214,7 +224,12 @@ public class SemanticAnalyzer {
         table.pushScope("func:" + n.name());
         for (ParamNode p : n.params()) {
             if (table.definedInCurrentScope(p.name())) error(p.location(), "Duplicate parameter: " + p.name());
-            else table.define(SymbolTable.Symbol.variable(p.name(), p.dataType(), p.location()));
+            else {
+                // Combine base dataType with param's arrayDims to get full type
+                int pointerLevel = p.dataType().pointerLevel() + p.arrayDims().size();
+                DataTypeNode fullType = new DataTypeNode(p.dataType().location(), p.dataType().baseTypeName(), pointerLevel);
+                table.define(SymbolTable.Symbol.variable(p.name(), fullType, p.location()));
+            }
         }
         DataTypeNode prevReturn = currentReturnType;
         currentReturnType = n.returnType();
@@ -275,10 +290,11 @@ public class SemanticAnalyzer {
                         + formatType(valueType) + " to " + formatType(lvalueType));
             }
 
+            // Better error message for agent_list assigned to primitives
             if (lvalueType != null && "agent_list".equals(valueType.baseTypeName())) {
                 String base = lvalueType.baseTypeName();
                 if ("int".equals(base) || "float".equals(base) || "char".equals(base) || "string".equals(base) || "bool".equals(base) || "void".equals(base)) {
-                    error(n.location(), "neighbors() returns a list of agents; declare the variable as an agent array (e.g. Drop[] drops;), not " + base);
+                    error(n.location(), "neighbors() returns a list of agents; declare the variable as an agent array (e.g. Wolf[] nearby;), not " + base);
                 }
             }
             return;
@@ -557,6 +573,14 @@ public class SemanticAnalyzer {
      */
     private static boolean typesCompatible(DataTypeNode expected, DataTypeNode actual) {
         if (expected == null || actual == null) return true;
+
+        // Special case: agent_list is compatible with any agent array type
+        if ("agent_list".equals(actual.baseTypeName())) {
+            // agent_list should only be assigned to agent arrays, not primitives
+            // The expected type's pointer level should be 1 (array) and base type should be a known agent
+            return expected.pointerLevel() > 0;
+        }
+
         if (expected.pointerLevel() != actual.pointerLevel()) {
             // allow null to any pointer type
             if (expected.pointerLevel() > 0 && actual.pointerLevel() > 0 && "void".equals(actual.baseTypeName())) return true;
