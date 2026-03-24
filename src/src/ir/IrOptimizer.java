@@ -338,6 +338,7 @@ public final class IrOptimizer {
         else if (ins instanceof Instr.NeighborsInstr a) for (Operand op : a.args()) addOperandSymbol(used, op);
         else if (ins instanceof Instr.AbmCallInstr a) for (Operand op : a.args()) addOperandSymbol(used, op);
         else if (ins instanceof Instr.ZoneEnterInstr a) addOperandSymbol(used, a.radius());
+        else if (ins instanceof Instr.AgentMethodCallInstr a) used.add(a.handle());
         return used;
     }
 
