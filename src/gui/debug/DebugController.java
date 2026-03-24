@@ -36,6 +36,7 @@ public class DebugController implements DebugHook, BreakpointListener, CompileLi
     private volatile DebugCommand nextCommand = DebugCommand.NONE;
     private volatile int stepOverDepth = -1;
     private volatile int stepOutTargetDepth = -1;
+    private volatile boolean pauseOnFirstInstruction = true;
 
     // Current execution state (updated by beforeInstruction)
     private volatile int currentCallDepth = 0;
@@ -80,19 +81,22 @@ public class DebugController implements DebugHook, BreakpointListener, CompileLi
     @Override
     public void beforeInstruction(FunctionIR func, int pc, int line,
                                   Map<String, Object> store,
-                                  List<DebugFrame> callStack) throws InterruptedException {
+                                  List<DebugFrame> callStack,
+                                  Map<Integer, Map<String, Object>> heapSnapshot) throws InterruptedException {
         currentCallDepth = callStack.size();
 
         // Determine if we should pause at this instruction
-        boolean shouldPause = breakpoints.contains(line)
+        boolean shouldPause = pauseOnFirstInstruction
+                || breakpoints.contains(line)
                 || (nextCommand == DebugCommand.STEP_OVER && currentCallDepth <= stepOverDepth)
                 || (nextCommand == DebugCommand.STEP_INTO)
                 || (nextCommand == DebugCommand.STEP_OUT && currentCallDepth < stepOutTargetDepth);
+        if (pauseOnFirstInstruction) pauseOnFirstInstruction = false;
 
         if (shouldPause) {
             // Notify UI (on EDT via SwingUtilities.invokeLater)
             SwingUtilities.invokeLater(() ->
-                debuggerPanel.onDebugPause(line, store, callStack));
+                debuggerPanel.onDebugPause(line, store, callStack, heapSnapshot));
 
             // Block interpreter thread until user steps/continues
             try {
@@ -147,6 +151,8 @@ public class DebugController implements DebugHook, BreakpointListener, CompileLi
         stepOverDepth = -1;
         stepOutTargetDepth = -1;
         currentCallDepth = 0;
+        pauseOnFirstInstruction = true; // Always pause at the first line
+        pauseSemaphore.drainPermits(); // Clear stale permits from previous sessions
 
         // Create interpreter with this debugger as the hook
         IrInterpreter interpreter = new IrInterpreter(irFuncs, ast, System.in, System.out, this);

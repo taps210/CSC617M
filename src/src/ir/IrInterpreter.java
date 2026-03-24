@@ -209,7 +209,10 @@ public final class IrInterpreter {
                 if (debugHook != null) {
                     int line = pc < lineTable.size() ? lineTable.get(pc) : -1;
                     try {
-                        debugHook.beforeInstruction(func, pc, line, Collections.unmodifiableMap(store), Collections.unmodifiableList(new ArrayList<>(debugStack)));
+                        debugHook.beforeInstruction(func, pc, line,
+                                Collections.unmodifiableMap(store),
+                                Collections.unmodifiableList(new ArrayList<>(debugStack)),
+                                buildHeapSnapshot());
                     } catch (InterruptedException e) {
                         throw new RuntimeException("Debugger interrupted execution", e);
                     }
@@ -806,6 +809,20 @@ public final class IrInterpreter {
         }
     }
 
+    /** Build a snapshot of the heap for the debugger. */
+    private Map<Integer, Map<String, Object>> buildHeapSnapshot() {
+        Map<Integer, Map<String, Object>> snapshot = new HashMap<>();
+        for (Map.Entry<Integer, HeapObject> entry : heap.entrySet()) {
+            HeapObject obj = entry.getValue();
+            if (!obj.freed) {
+                Map<String, Object> fields = new HashMap<>(obj.fields);
+                fields.put("_type", obj.typeName);
+                snapshot.put(entry.getKey(), fields);
+            }
+        }
+        return snapshot;
+    }
+
     /** Helper to manage reference counting on store assignment. */
     private void storeSet(String name, Object newVal) {
         Object oldVal = store.get(name);
@@ -834,10 +851,27 @@ public final class IrInterpreter {
         }
     }
 
-    /** Initialize default field values for a newly allocated heap object. */
+    /** Initialize default field values for a newly allocated heap object by scanning the AST. */
     private void initDefaultFields(HeapObject obj) {
-        // All fields default to 0 (numeric) or null (pointer/other)
-        // TODO: Could scan AST to get actual field types, but for now use 0
-        // The interpreter doesn't need to know actual field names/types
+        if (program == null) return;
+        for (Ast.TypeDeclNode td : program.typeDecls()) {
+            if (td instanceof Ast.AgentDeclNode a && a.name().equals(obj.typeName)) {
+                for (Ast.VarDeclNode f : a.fields()) {
+                    String baseType = f.dataType().baseTypeName();
+                    for (Ast.DeclaratorNode d : f.declarators()) {
+                        Object defaultVal = switch (baseType) {
+                            case "int" -> 0;
+                            case "float" -> 0.0;
+                            case "bool" -> false;
+                            case "char" -> '\0';
+                            case "string" -> "";
+                            default -> null;
+                        };
+                        obj.fields.put(d.name(), defaultVal);
+                    }
+                }
+                return;
+            }
+        }
     }
 }

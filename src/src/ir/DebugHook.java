@@ -16,9 +16,11 @@ public interface DebugHook {
      * @param line         source line number for this instruction (-1 if unavailable)
      * @param store        current variable/temp bindings (unmodifiable)
      * @param callStack    current call stack from oldest to newest frame (unmodifiable)
+     * @param heapSnapshot snapshot of heap objects (objectId -> {fieldName -> value})
      * @throws InterruptedException if interrupted (e.g., stop requested)
      */
     void beforeInstruction(FunctionIR func, int pc, int line,
                           Map<String, Object> store,
-                          List<DebugFrame> callStack) throws InterruptedException;
+                          List<DebugFrame> callStack,
+                          Map<Integer, Map<String, Object>> heapSnapshot) throws InterruptedException;
 }

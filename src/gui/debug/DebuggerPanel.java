@@ -7,11 +7,13 @@ import src.ir.DebugFrame;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Debugger panel displaying variables, call stack, breakpoints, and step controls.
+ * Debugger panel displaying variables, watch expressions, trace log,
+ * call stack, breakpoints, and step controls.
  */
 public class DebuggerPanel extends JPanel {
     private EditorPanel editorPanel;
@@ -21,21 +23,36 @@ public class DebuggerPanel extends JPanel {
     private JList<String> callStackList;
     private JList<String> breakpointsList;
 
-    private JButton stepOverBtn;
-    private JButton stepIntoBtn;
-    private JButton stepOutBtn;
+    private JButton nextLineBtn;
     private JButton continueBtn;
-    private JButton stopBtn;
+    private JButton restartBtn;
     private JButton removeBreakpointBtn;
 
     private DefaultTableModel variablesModel;
     private DefaultListModel<String> callStackModel;
     private DefaultListModel<String> breakpointsModel;
 
+    // Watch panel
+    private JComboBox<String> watchComboBox;
+    private JButton addWatchBtn;
+    private JButton removeWatchBtn;
+    private DefaultTableModel watchModel;
+    private JTable watchTable;
+    private final List<String> watchExpressions = new ArrayList<>();
+
+    // Trace panel
+    private DefaultTableModel traceModel;
+    private JTable traceTable;
+    private JButton clearTraceBtn;
+    private int traceStep = 0;
+    private Map<String, Object> previousStore; // for detecting changes
+
+    // Last known store and heap for watch evaluation
+    private Map<String, Object> lastStore;
+    private Map<Integer, Map<String, Object>> lastHeap;
+
     // Callbacks for button actions
     private Runnable onStepOver = () -> {};
-    private Runnable onStepInto = () -> {};
-    private Runnable onStepOut = () -> {};
     private Runnable onContinue = () -> {};
     private Runnable onStop = () -> {};
 
@@ -45,44 +62,88 @@ public class DebuggerPanel extends JPanel {
     }
 
     private void initComponents() {
-        // Header: "Debugger" label + status
+        // Header
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.add(new JLabel("Debugger"), BorderLayout.WEST);
         add(headerPanel, BorderLayout.NORTH);
 
-        // Main content: split panes for variables + call stack + breakpoints
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        // Use a tabbed pane for the main content area
+        JTabbedPane contentTabs = new JTabbedPane(JTabbedPane.TOP);
 
-        // Variables and Call Stack panels (top)
-        JSplitPane topSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        // === Tab 1: Variables + Call Stack ===
+        JSplitPane varsCallSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 
-        // Variables table
         variablesModel = new DefaultTableModel(new String[]{"Name", "Value"}, 0);
         variablesTable = new JTable(variablesModel);
         variablesTable.setEnabled(false);
-        JScrollPane variablesScroll = new JScrollPane(variablesTable);
-        topSplit.setLeftComponent(createLabeledPanel("Variables", variablesScroll));
+        varsCallSplit.setLeftComponent(createLabeledPanel("Variables", new JScrollPane(variablesTable)));
 
-        // Call stack list
         callStackModel = new DefaultListModel<>();
         callStackList = new JList<>(callStackModel);
         callStackList.setEnabled(false);
-        JScrollPane callStackScroll = new JScrollPane(callStackList);
-        topSplit.setRightComponent(createLabeledPanel("Call Stack", callStackScroll));
-        topSplit.setDividerLocation(0.5);
+        varsCallSplit.setRightComponent(createLabeledPanel("Call Stack", new JScrollPane(callStackList)));
+        varsCallSplit.setDividerLocation(250);
 
-        mainSplit.setTopComponent(topSplit);
+        contentTabs.addTab("Variables", varsCallSplit);
 
-        // Breakpoints panel (bottom)
+        // === Tab 2: Watch ===
+        JPanel watchPanel = new JPanel(new BorderLayout());
+
+        // Watch input row
+        JPanel watchInputPanel = new JPanel(new BorderLayout(4, 0));
+        watchInputPanel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        watchComboBox = new JComboBox<>();
+        watchComboBox.setEditable(false);
+        watchComboBox.setToolTipText("Select a variable to watch");
+        addWatchBtn = new JButton("Add");
+        addWatchBtn.addActionListener(e -> addWatch());
+        removeWatchBtn = new JButton("Remove");
+        removeWatchBtn.addActionListener(e -> removeSelectedWatch());
+
+        JPanel watchBtnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        watchBtnPanel.add(addWatchBtn);
+        watchBtnPanel.add(removeWatchBtn);
+        watchInputPanel.add(new JLabel("Watch: "), BorderLayout.WEST);
+        watchInputPanel.add(watchComboBox, BorderLayout.CENTER);
+        watchInputPanel.add(watchBtnPanel, BorderLayout.EAST);
+        watchPanel.add(watchInputPanel, BorderLayout.NORTH);
+
+        // Watch table
+        watchModel = new DefaultTableModel(new String[]{"Expression", "Value"}, 0);
+        watchTable = new JTable(watchModel);
+        watchTable.setEnabled(true);
+        watchPanel.add(new JScrollPane(watchTable), BorderLayout.CENTER);
+
+        contentTabs.addTab("Watch", watchPanel);
+
+        // === Tab 3: Trace ===
+        JPanel tracePanel = new JPanel(new BorderLayout());
+
+        // Trace header with clear button
+        JPanel traceHeaderPanel = new JPanel(new BorderLayout());
+        traceHeaderPanel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        traceHeaderPanel.add(new JLabel("Execution Trace (records variable values at each step)"), BorderLayout.CENTER);
+        clearTraceBtn = new JButton("Clear");
+        clearTraceBtn.addActionListener(e -> clearTrace());
+        traceHeaderPanel.add(clearTraceBtn, BorderLayout.EAST);
+        tracePanel.add(traceHeaderPanel, BorderLayout.NORTH);
+
+        // Trace table — one row per step, compact summary
+        traceModel = new DefaultTableModel(new String[]{"Step", "Line", "Changes"}, 0);
+        traceTable = new JTable(traceModel);
+        traceTable.setEnabled(false);
+        traceTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+        tracePanel.add(new JScrollPane(traceTable), BorderLayout.CENTER);
+
+        contentTabs.addTab("Trace", tracePanel);
+
+        // === Tab 4: Breakpoints ===
         breakpointsModel = new DefaultListModel<>();
         breakpointsList = new JList<>(breakpointsModel);
         breakpointsList.setEnabled(false);
-        JScrollPane breakpointsScroll = new JScrollPane(breakpointsList);
 
         JPanel breakpointsPanel = new JPanel(new BorderLayout());
-        breakpointsPanel.add(new JLabel("Breakpoints"), BorderLayout.NORTH);
-        JPanel breakpointsContent = new JPanel(new BorderLayout());
-        breakpointsContent.add(breakpointsScroll, BorderLayout.CENTER);
+        breakpointsPanel.add(new JScrollPane(breakpointsList), BorderLayout.CENTER);
 
         removeBreakpointBtn = new JButton("Remove");
         removeBreakpointBtn.setEnabled(false);
@@ -92,44 +153,186 @@ public class DebuggerPanel extends JPanel {
         });
         JPanel breakpointsBtnPanel = new JPanel();
         breakpointsBtnPanel.add(removeBreakpointBtn);
-        breakpointsContent.add(breakpointsBtnPanel, BorderLayout.SOUTH);
-        breakpointsPanel.add(breakpointsContent, BorderLayout.CENTER);
+        breakpointsPanel.add(breakpointsBtnPanel, BorderLayout.SOUTH);
 
-        mainSplit.setBottomComponent(breakpointsPanel);
-        mainSplit.setDividerLocation(0.7);
+        contentTabs.addTab("Breakpoints", breakpointsPanel);
 
-        add(mainSplit, BorderLayout.CENTER);
+        add(contentTabs, BorderLayout.CENTER);
 
-        // Control buttons (bottom)
+        // Control buttons (bottom) — simplified: Next Line, Continue, Restart
         JPanel controlPanel = new JPanel();
         controlPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
 
-        stepOverBtn = new JButton("Step Over");
-        stepOverBtn.setEnabled(false);
-        stepOverBtn.addActionListener(e -> onStepOver.run());
-        controlPanel.add(stepOverBtn);
-
-        stepIntoBtn = new JButton("Step Into");
-        stepIntoBtn.setEnabled(false);
-        stepIntoBtn.addActionListener(e -> onStepInto.run());
-        controlPanel.add(stepIntoBtn);
-
-        stepOutBtn = new JButton("Step Out");
-        stepOutBtn.setEnabled(false);
-        stepOutBtn.addActionListener(e -> onStepOut.run());
-        controlPanel.add(stepOutBtn);
+        nextLineBtn = new JButton("Next Line");
+        nextLineBtn.setEnabled(false);
+        nextLineBtn.addActionListener(e -> onStepOver.run());
+        controlPanel.add(nextLineBtn);
 
         continueBtn = new JButton("Continue");
         continueBtn.setEnabled(false);
         continueBtn.addActionListener(e -> onContinue.run());
         controlPanel.add(continueBtn);
 
-        stopBtn = new JButton("Stop");
-        stopBtn.setEnabled(false);
-        stopBtn.addActionListener(e -> onStop.run());
-        controlPanel.add(stopBtn);
+        restartBtn = new JButton("Restart");
+        restartBtn.setEnabled(false);
+        restartBtn.addActionListener(e -> {
+            onStop.run();
+            // Clear trace for fresh run
+            clearTrace();
+        });
+        controlPanel.add(restartBtn);
 
         add(controlPanel, BorderLayout.SOUTH);
+    }
+
+    // --- Watch helpers ---
+
+    private void addWatch() {
+        Object selected = watchComboBox.getSelectedItem();
+        if (selected == null) return;
+        String expr = selected.toString().trim();
+        if (expr.isEmpty()) return;
+        if (watchExpressions.contains(expr)) return;
+        watchExpressions.add(expr);
+        refreshWatch();
+    }
+
+    private void removeSelectedWatch() {
+        int row = watchTable.getSelectedRow();
+        if (row >= 0 && row < watchExpressions.size()) {
+            watchExpressions.remove(row);
+            refreshWatch();
+        }
+    }
+
+    private void refreshWatch() {
+        watchModel.setRowCount(0);
+        for (String expr : watchExpressions) {
+            String value = evaluateWatch(expr);
+            watchModel.addRow(new Object[]{expr, value});
+            // Expand pointer fields as sub-rows
+            if (lastStore != null) {
+                Object val = lastStore.get(expr);
+                if (isHeapPointer(val)) {
+                    Map<String, Object> fields = getHeapFields(val);
+                    if (fields != null) {
+                        for (Map.Entry<String, Object> f : fields.entrySet()) {
+                            if ("_type".equals(f.getKey())) continue;
+                            watchModel.addRow(new Object[]{"  " + expr + "->" + f.getKey(), formatValue(f.getValue())});
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void updateWatchComboBox(Map<String, Object> store) {
+        watchComboBox.removeAllItems();
+        for (String key : store.keySet()) {
+            if (key.matches("t\\d+")) continue; // skip IR temps
+            if (!watchExpressions.contains(key)) {
+                watchComboBox.addItem(key);
+            }
+        }
+    }
+
+    private String evaluateWatch(String expr) {
+        if (lastStore == null) return "<no debug session>";
+        Object val = lastStore.get(expr);
+        if (val == null && !lastStore.containsKey(expr)) return "<undefined>";
+        return formatValue(val);
+    }
+
+    // --- Trace helpers ---
+
+    private void recordTrace(int line, Map<String, Object> store) {
+        traceStep++;
+
+        // Build a compact summary including heap object fields
+        StringBuilder changes = new StringBuilder();
+
+        for (Map.Entry<String, Object> entry : store.entrySet()) {
+            if (entry.getKey().matches("t\\d+")) continue;
+            // If watching specific variables, only include those
+            if (!watchExpressions.isEmpty() && !watchExpressions.contains(entry.getKey())) continue;
+
+            if (changes.length() > 0) changes.append(", ");
+            Object val = entry.getValue();
+            changes.append(entry.getKey()).append("=").append(formatValue(val));
+
+            // Expand pointer fields inline
+            if (isHeapPointer(val) && lastHeap != null) {
+                Map<String, Object> fields = getHeapFields(val);
+                if (fields != null) {
+                    changes.append("{");
+                    boolean first = true;
+                    for (Map.Entry<String, Object> f : fields.entrySet()) {
+                        if ("_type".equals(f.getKey())) continue;
+                        if (!first) changes.append(", ");
+                        changes.append(f.getKey()).append("=").append(formatValue(f.getValue()));
+                        first = false;
+                    }
+                    changes.append("}");
+                }
+            }
+        }
+
+        traceModel.addRow(new Object[]{traceStep, line, changes.toString()});
+
+        // Auto-scroll to bottom
+        SwingUtilities.invokeLater(() -> {
+            int lastRow = traceTable.getRowCount() - 1;
+            if (lastRow >= 0) traceTable.scrollRectToVisible(traceTable.getCellRect(lastRow, 0, true));
+        });
+    }
+
+    private void clearTrace() {
+        traceModel.setRowCount(0);
+        traceStep = 0;
+        previousStore = null;
+    }
+
+    // --- Shared helpers ---
+
+    private Map<String, Object> getHeapFields(Object ptr) {
+        if (lastHeap == null || ptr == null) return null;
+        try {
+            String idStr = ptr.toString().substring(1);
+            int objectId = Integer.parseInt(idStr);
+            return lastHeap.get(objectId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void expandHeapPointer(String varName, Object ptr, Map<Integer, Map<String, Object>> heapSnapshot) {
+        if (heapSnapshot == null) return;
+        try {
+            // Extract objectId from HeapPointer via toString() which returns "#N"
+            String idStr = ptr.toString().substring(1); // remove "#"
+            int objectId = Integer.parseInt(idStr);
+            Map<String, Object> fields = heapSnapshot.get(objectId);
+            if (fields == null) return;
+            for (Map.Entry<String, Object> field : fields.entrySet()) {
+                if ("_type".equals(field.getKey())) continue; // skip internal type marker
+                variablesModel.addRow(new Object[]{"  " + varName + "->" + field.getKey(), formatValue(field.getValue())});
+            }
+        } catch (Exception ignored) {
+            // Skip if we can't parse the pointer
+        }
+    }
+
+    private static boolean isHeapPointer(Object val) {
+        if (val == null) return false;
+        String s = val.toString();
+        return s.startsWith("#") && s.length() > 1 && Character.isDigit(s.charAt(1));
+    }
+
+    private static String formatValue(Object val) {
+        if (val == null) return "null";
+        if (isHeapPointer(val)) return val.toString();
+        if (val instanceof List<?>) return "array[" + ((List<?>) val).size() + "]";
+        return String.valueOf(val);
     }
 
     private JPanel createLabeledPanel(String label, JComponent component) {
@@ -138,6 +341,8 @@ public class DebuggerPanel extends JPanel {
         panel.add(component, BorderLayout.CENTER);
         return panel;
     }
+
+    // --- Public API ---
 
     public void setEditorPanel(EditorPanel editorPanel) {
         this.editorPanel = editorPanel;
@@ -152,11 +357,12 @@ public class DebuggerPanel extends JPanel {
     }
 
     public void setOnStepIntoRequested(Runnable runnable) {
-        this.onStepInto = runnable;
+        // Maps to Next Line (same as step over for simplified UI)
+        this.onStepOver = runnable;
     }
 
     public void setOnStepOutRequested(Runnable runnable) {
-        this.onStepOut = runnable;
+        // Not exposed in simplified UI
     }
 
     public void setOnContinueRequested(Runnable runnable) {
@@ -167,18 +373,31 @@ public class DebuggerPanel extends JPanel {
         this.onStop = runnable;
     }
 
-    public void onDebugPause(int line, Map<String, Object> store, List<DebugFrame> callStack) {
+    public void onDebugPause(int line, Map<String, Object> store, List<DebugFrame> callStack,
+                             Map<Integer, Map<String, Object>> heapSnapshot) {
         SwingUtilities.invokeLater(() -> {
-            // Update variables table
+            // Save store and heap for watch evaluation
+            lastStore = store;
+            lastHeap = heapSnapshot;
+
+            // Update variables table (filter out IR temp variables)
             variablesModel.setRowCount(0);
             for (Map.Entry<String, Object> entry : store.entrySet()) {
-                Object displayVal = entry.getValue();
-                // Format HeapPointer values as #id instead of raw object reference
-                if (displayVal != null && displayVal.getClass().getSimpleName().equals("HeapPointer")) {
-                    displayVal = displayVal.toString();
+                if (entry.getKey().matches("t\\d+")) continue; // skip IR temps
+                Object val = entry.getValue();
+                variablesModel.addRow(new Object[]{entry.getKey(), formatValue(val)});
+                // If the value is a HeapPointer, expand its fields as sub-rows
+                if (val != null && isHeapPointer(val)) {
+                    expandHeapPointer(entry.getKey(), val, heapSnapshot);
                 }
-                variablesModel.addRow(new Object[]{entry.getKey(), displayVal});
             }
+
+            // Update watch panel
+            updateWatchComboBox(store);
+            refreshWatch();
+
+            // Record trace entry
+            recordTrace(line, store);
 
             // Update call stack list
             callStackModel.clear();
@@ -192,12 +411,10 @@ public class DebuggerPanel extends JPanel {
                 editorPanel.highlightDebugLine(line);
             }
 
-            // Enable step buttons
-            stepOverBtn.setEnabled(true);
-            stepIntoBtn.setEnabled(true);
-            stepOutBtn.setEnabled(true);
+            // Enable buttons
+            nextLineBtn.setEnabled(true);
             continueBtn.setEnabled(true);
-            stopBtn.setEnabled(true);
+            restartBtn.setEnabled(true);
 
             // Switch to Debug tab
             Container parent = getParent();
@@ -209,12 +426,12 @@ public class DebuggerPanel extends JPanel {
 
     public void onDebugSessionEnded() {
         SwingUtilities.invokeLater(() -> {
-            // Disable step buttons
-            stepOverBtn.setEnabled(false);
-            stepIntoBtn.setEnabled(false);
-            stepOutBtn.setEnabled(false);
+            lastStore = null;
+
+            // Disable buttons
+            nextLineBtn.setEnabled(false);
             continueBtn.setEnabled(false);
-            stopBtn.setEnabled(false);
+            restartBtn.setEnabled(false);
 
             // Clear debug highlight
             if (editorPanel != null) {
