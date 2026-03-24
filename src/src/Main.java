@@ -18,6 +18,7 @@ import java.io.PrintStream;
 import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,6 +36,8 @@ public final class Main {
                         java -cp build/classes/java/main src.Main --semantic --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --ir <inputFile>
                         java -cp build/classes/java/main src.Main --ir --out <outputFile> <inputFile>
+                        java -cp build/classes/java/main src.Main --ir --no-opt <inputFile>
+                        java -cp build/classes/java/main src.Main --ir --opt-trace <inputFile>
                         java -cp build/classes/java/main src.Main --run <inputFile>
                         java -cp build/classes/java/main src.Main --run --out <outputFile> <inputFile>
                         java -cp build/classes/java/main src.Main --cfg <inputFile>
@@ -47,18 +50,38 @@ public final class Main {
         String mode = args[0];
         int i = 1;
         String outFile = null;
-        if (i < args.length && args[i].equals("--out")) {
-            if (mode.equals("--bench")) {
-                System.out.println("--bench does not use --out.");
-                return;
+        boolean noOpt = false;
+        boolean optTrace = false;
+
+        while (i < args.length - 1 && args[i].startsWith("--")) {
+            switch (args[i]) {
+                case "--out" -> {
+                    if (mode.equals("--bench")) {
+                        System.out.println("--bench does not use --out.");
+                        return;
+                    }
+                    i++;
+                    if (i >= args.length) {
+                        System.out.println("Missing output file after --out.");
+                        return;
+                    }
+                    outFile = args[i++];
+                }
+                case "--no-opt" -> {
+                    noOpt = true;
+                    i++;
+                }
+                case "--opt-trace" -> {
+                    optTrace = true;
+                    i++;
+                }
+                default -> {
+                    // Unknown flag; stop parsing options and treat the rest as positional.
+                    i = args.length - 1;
+                }
             }
-            i++;
-            if (i >= args.length) {
-                System.out.println("Missing output file after --out.");
-                return;
-            }
-            outFile = args[i++];
         }
+
         if (i >= args.length) {
             System.out.println("Missing input file.");
             return;
@@ -69,7 +92,7 @@ public final class Main {
             case "--scan" -> runScan(inFile, outFile);
             case "--parse" -> runParse(inFile, outFile);
             case "--semantic" -> runSemantic(inFile, outFile);
-            case "--ir" -> runIr(inFile, outFile);
+            case "--ir" -> runIr(inFile, outFile, noOpt, optTrace);
             case "--run" -> runRun(inFile, outFile);
             case "--cfg" -> runCfg(inFile, outFile);
             case "--bench" -> runBench(inFile);
@@ -166,13 +189,35 @@ public final class Main {
 
     // ---------------- IR MODE ----------------
 
-    private static void runIr(String inputFile, String outputFile) throws Exception {
+    private static void runIr(String inputFile, String outputFile, boolean noOpt, boolean optTrace) throws Exception {
         var sb = new StringBuilder();
         ProgramNode ast = parseAndAnalyze(inputFile, sb);
         if (ast != null) {
             try {
-                for (FunctionIR f : optimizeAll(IrBuilder.buildProgram(ast)))
-                    sb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
+                List<FunctionIR> funcs = IrBuilder.buildProgram(ast);
+                if (optTrace) {
+                    for (FunctionIR f : funcs) {
+                        IrOptimizer.OptimizeTrace trace = IrOptimizer.optimizeFunctionWithTrace(f);
+                        sb.append("==== IR TRACE: ").append(f.name()).append(" ====").append(System.lineSeparator());
+                        sb.append("-- RAW --").append(System.lineSeparator());
+                        sb.append(IrFormatter.formatFunctionIR(trace.original())).append(System.lineSeparator());
+
+                        sb.append("-- AFTER #1 Constant Folding (folded ").append(trace.foldedCount()).append(") --").append(System.lineSeparator());
+                        sb.append(IrFormatter.formatFunctionIR(trace.afterConstantFolding())).append(System.lineSeparator());
+
+                        sb.append("-- AFTER #2 Branch Simplification + Unreachable (simplified ").append(trace.simplifiedBranchCount()).append(") --").append(System.lineSeparator());
+                        sb.append(IrFormatter.formatFunctionIR(trace.afterBranchSimplification())).append(System.lineSeparator());
+
+                        sb.append("-- AFTER #3 Dead Temp Elimination (removed ").append(trace.removedDeadTempCount()).append(") --").append(System.lineSeparator());
+                        sb.append(IrFormatter.formatFunctionIR(trace.afterDeadTempElimination())).append(System.lineSeparator());
+                    }
+                } else if (noOpt) {
+                    for (FunctionIR f : funcs)
+                        sb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
+                } else {
+                    for (FunctionIR f : optimizeAll(funcs))
+                        sb.append(IrFormatter.formatFunctionIR(f)).append(System.lineSeparator());
+                }
             } catch (Exception e) {
                 sb.append("IR build failed: ").append(e.getMessage()).append(System.lineSeparator());
             }
@@ -243,7 +288,7 @@ public final class Main {
     private static ProgramNode parseAndAnalyze(String inputFile, StringBuilder sb) throws Exception {
         List<Token> tokens;
         try {
-            tokens = new Scanner(Files.readString(Path.of(inputFile))).tokenizeAll();
+            tokens = new Scanner(readSourceWithFallback(inputFile)).tokenizeAll();
         } catch (LexicalErrorRecord.ScanAbortedException e) {
             sb.append(e.getMessage()).append(System.lineSeparator());
             return null;
@@ -262,6 +307,34 @@ public final class Main {
             return null;
         }
         return ast;
+    }
+
+    /**
+     * Reads a source file, with helpful fallbacks when the user provides only a basename.
+     * This keeps the CLI friendly during live demos.
+     */
+    private static String readSourceWithFallback(String inputFile) throws Exception {
+        Path p = Path.of(inputFile);
+        try {
+            return Files.readString(p);
+        } catch (NoSuchFileException first) {
+            // If user passed a relative basename, try common project folders.
+            if (!p.isAbsolute()) {
+                List<Path> fallbacks = Arrays.asList(
+                        Path.of("tests", "rubric", inputFile),
+                        Path.of("tests", inputFile),
+                        Path.of("examples", inputFile)
+                );
+                for (Path fp : fallbacks) {
+                    try {
+                        return Files.readString(fp);
+                    } catch (NoSuchFileException ignored) {
+                        // keep trying
+                    }
+                }
+            }
+            throw first;
+        }
     }
 
     /** Writes result to outputFile if given, otherwise prints to stdout. */

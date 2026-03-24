@@ -64,6 +64,12 @@ Scan + parse + semantic + IR generation; prints three-address code for all funct
 ```bash
 ./gradlew run --args="--ir <inputFile>"
 ./gradlew run --args="--ir --out <outputFile> <inputFile>"
+
+# Rubric/demo helpers:
+# - raw (unoptimized) IR
+./gradlew run --args="--ir --no-opt <inputFile>"
+# - white-box optimization trace (raw + after each optimization pass)
+./gradlew run --args="--ir --opt-trace <inputFile>"
 ```
 
 ### CFG (control flow graph)
