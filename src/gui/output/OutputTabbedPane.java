@@ -3,6 +3,7 @@ package src.gui.output;
 import src.gui.core.CompileListener;
 import src.gui.core.CompileResult;
 import src.gui.debug.DebuggerPanel;
+import src.gui.output.OptimizationOutputPanel;
 
 import javax.swing.*;
 import java.awt.Dimension;
@@ -17,6 +18,7 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
     private final SemanticOutputPanel semanticPanel;
     private final IrOutputPanel irPanel;
     private final CfgOutputPanel cfgPanel;
+    private final OptimizationOutputPanel optimizationPanel;
     private final ErrorsPanel errorsPanel;
     private final InterpreterOutputPanel interpreterPanel;
     private final DebuggerPanel debuggerPanel;
@@ -25,31 +27,33 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
     private static final int MIN_PANEL_HEIGHT = 200;
 
     public OutputTabbedPane() {
-        scannerPanel     = new ScannerOutputPanel();
-        parserPanel      = new ParserOutputPanel();
-        analyzePanel     = new AnalyzePanel();
-        semanticPanel    = new SemanticOutputPanel();
-        irPanel          = new IrOutputPanel();
-        cfgPanel         = new CfgOutputPanel();
-        errorsPanel      = new ErrorsPanel();
-        interpreterPanel = new InterpreterOutputPanel();
-        debuggerPanel    = new DebuggerPanel();
+        scannerPanel       = new ScannerOutputPanel();
+        parserPanel        = new ParserOutputPanel();
+        analyzePanel       = new AnalyzePanel();
+        semanticPanel      = new SemanticOutputPanel();
+        irPanel            = new IrOutputPanel();
+        cfgPanel           = new CfgOutputPanel();
+        optimizationPanel  = new OptimizationOutputPanel();
+        errorsPanel        = new ErrorsPanel();
+        interpreterPanel   = new InterpreterOutputPanel();
+        debuggerPanel      = new DebuggerPanel();
 
         for (JComponent p : new JComponent[]{
                 scannerPanel, parserPanel, analyzePanel, semanticPanel,
-                irPanel, cfgPanel, errorsPanel, interpreterPanel, debuggerPanel}) {
+                irPanel, cfgPanel, optimizationPanel, errorsPanel, interpreterPanel, debuggerPanel}) {
             p.setMinimumSize(new Dimension(MIN_PANEL_WIDTH, MIN_PANEL_HEIGHT));
         }
 
-        addTab("Scanner",  scannerPanel);
-        addTab("Parser",   parserPanel);
-        addTab("Trees",    analyzePanel);
-        addTab("Semantic", semanticPanel);
-        addTab("IR",       irPanel);
-        addTab("CFG",      cfgPanel);
-        addTab("Errors",   errorsPanel);
-        addTab("Output",   interpreterPanel);
-        addTab("Debug",    debuggerPanel);
+        addTab("Scanner",      scannerPanel);
+        addTab("Parser",       parserPanel);
+        addTab("Trees",        analyzePanel);
+        addTab("Semantic",     semanticPanel);
+        addTab("Optimization", optimizationPanel);
+        addTab("IR",           irPanel);
+        addTab("CFG",          cfgPanel);
+        addTab("Errors",       errorsPanel);
+        addTab("Output",       interpreterPanel);
+        addTab("Debug",        debuggerPanel);
     }
 
     @Override
@@ -60,6 +64,7 @@ public class OutputTabbedPane extends JTabbedPane implements CompileListener {
         semanticPanel.onCompileComplete(result);
         irPanel.onCompileComplete(result);
         cfgPanel.onCompileComplete(result);
+        optimizationPanel.onCompileComplete(result);
         errorsPanel.onCompileComplete(result);
         interpreterPanel.onCompileComplete(result);
     }

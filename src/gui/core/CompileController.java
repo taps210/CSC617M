@@ -201,17 +201,22 @@ public class CompileController {
         Optional<String> cfgText = Optional.empty();
         Optional<String> interpreterOutput = Optional.empty();
         List<FunctionIR> irFuncs = List.of();
+        List<IrOptimizer.OptimizeTrace> optimizeTraces = List.of();
         boolean hasErrors = allErrors.stream().anyMatch(e -> e.severity() == CompileError.Severity.ERROR);
         if (ast.isPresent() && !hasErrors) {
             long ir0 = System.nanoTime();
             try {
                 irFuncs = IrBuilder.buildProgram(ast.get());
-                // Optimization #1: constant folding at IR level.
+                // Optimization: run all 3 passes and capture trace for visualization.
                 List<FunctionIR> optimized = new ArrayList<>(irFuncs.size());
+                List<IrOptimizer.OptimizeTrace> traces = new ArrayList<>(irFuncs.size());
                 for (FunctionIR f : irFuncs) {
-                    optimized.add(IrOptimizer.optimizeFunction(f).function());
+                    IrOptimizer.OptimizeTrace trace = IrOptimizer.optimizeFunctionWithTrace(f);
+                    optimized.add(trace.optimized());
+                    traces.add(trace);
                 }
                 irFuncs = optimized;
+                optimizeTraces = traces;
                 // Cache IR and AST for debugger
                 lastIrFuncs = irFuncs;
                 lastAst = ast.get();
@@ -253,7 +258,7 @@ public class CompileController {
         }
 
         CompileResult result = new CompileResult(sourceText, tokens, parserTrace, allErrors, metrics, ast, parseTree,
-                irText, cfgText, interpreterOutput, symbolEntries);
+                irText, cfgText, interpreterOutput, symbolEntries, optimizeTraces);
         this.lastResult = result;
         notifyListeners(result);
 

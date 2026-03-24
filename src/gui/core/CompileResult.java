@@ -4,6 +4,7 @@ import src.Token;
 import static src.Ast.*;
 import src.gui.model.CompileError;
 import src.gui.model.CompileMetrics;
+import src.ir.IrOptimizer;
 import src.parsetree.ParseTreeNode;
 import src.semantic.SymbolEntry;
 
@@ -25,12 +26,13 @@ public record CompileResult(
         Optional<String> irText,
         Optional<String> cfgText,
         Optional<String> interpreterOutput,
-        List<SymbolEntry> symbolEntries
+        List<SymbolEntry> symbolEntries,
+        List<IrOptimizer.OptimizeTrace> optimizeTraces
 ) {
     /** Legacy constructor without AST or parse tree (uses Optional.empty()). */
     public CompileResult(String sourceText, List<Token> tokens, String parserTrace,
                          List<CompileError> errors, CompileMetrics metrics) {
         this(sourceText, tokens, parserTrace, errors, metrics, Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), List.of());
+                Optional.empty(), Optional.empty(), Optional.empty(), List.of(), List.of());
     }
 }
