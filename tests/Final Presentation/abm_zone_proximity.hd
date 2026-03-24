@@ -1,0 +1,87 @@
+// Zone Proximity Test + World Alarm Counter
+//
+// Verifies:
+//   1. Zone blocks fire based on proximity to a target agent type
+//   2. Zone blocks can read and write world fields (alarmLevel)
+//   3. alarmLevel in worldStore is updated by zone executions and visible in post
+//
+// Setup:
+//   - One Guard at (5,5) with energy that decreases each step
+//   - One Player at (0,0) that moves +1 toward Guard each step
+//   - zone nearPlayer(3, Player): fires when Player is within radius 3
+//       -> Guard increments world alarmLevel each time it fires
+//   - zone critical(5, Player): fires when Player is within radius 5
+//       AND energy < 10; destroys the Guard
+//   - post prints alarmLevel so we can verify zone wrote to shared world state
+//
+// Run: ./gradlew run --args="--run examples/Example05_Zone.hd"
+
+agent Player {
+    int x, y;
+
+    update {
+        int nx;
+        int ny;
+        if (self.x < 5) { nx = self.x + 1; } else { nx = self.x; }
+        if (self.y < 5) { ny = self.y + 1; } else { ny = self.y; }
+        move(nx, ny);
+    }
+}
+
+agent Guard {
+    int x, y;
+    int energy = 50;
+
+    zone nearPlayer(3, Player) {
+        // fires when Player is within radius 3 â€” raise alarm in world
+        alarmLevel = alarmLevel + 1;
+        if (energy < 30) {
+            print("  [zone nearPlayer] Guard energy low AND Player close! energy =", energy, "alarmLevel =", alarmLevel);
+        }
+    }
+
+    zone critical(5, Player) {
+        // fires when Player is within radius 5
+        if (energy < 10) {
+            print("  [zone critical] Guard exhausted, dying. energy =", energy, "alarmLevel =", alarmLevel);
+            destroy(self);
+        }
+    }
+
+    update {
+        energy = energy - 5;
+        print("  [Guard] update energy =", energy);
+    }
+}
+
+world Arena {
+    int width = 10;
+    int height = 10;
+    bool spawned = false;
+    int tick = 0;
+    int alarmLevel = 0;
+
+    pre {
+        if (!spawned) {
+            spawn Guard(5, 5);
+            spawn Player(0, 0);
+            spawned = true;
+            print("[World] Guard at (5,5) energy=50, Player at (0,0).");
+        }
+    }
+
+    post {
+        tick = tick + 1;
+        print("[post] tick =", tick, ", alarmLevel =", alarmLevel);
+    }
+}
+
+void main() {
+    int steps = 0;
+    print("=== Zone Proximity + World Alarm Test ===");
+    repeat {
+        step();
+        steps = steps + 1;
+    } until (steps >= 15);
+    print("=== Done. Ran", steps, "steps ===");
+}
