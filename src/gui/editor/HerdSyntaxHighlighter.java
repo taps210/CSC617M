@@ -3,6 +3,7 @@ package src.gui.editor;
 import src.Scanner;
 import src.Token;
 import src.TokenType;
+import src.errors.LexicalErrorRecord;
 import src.gui.model.TokenColorMap;
 
 import javax.swing.*;
@@ -10,6 +11,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.*;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -59,7 +61,9 @@ public class HerdSyntaxHighlighter implements DocumentListener {
             List<Token> tokens;
             try {
                 Scanner scanner = new Scanner(text);
-                tokens = scanner.tokenizeAll();
+                // Use recovery mode so unknown symbols and similar recoverable errors
+                // don't disable highlighting for the entire document.
+                tokens = scanner.tokenizeAll(new ArrayList<LexicalErrorRecord>());
             } catch (Exception e) {
                 // On lexical error (e.g. unterminated string), skip coloring rest
                 return;
