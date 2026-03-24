@@ -147,6 +147,21 @@ void test8Loops() {
     }
 }
 
+// Test 9: Print pointer address
+void test9PrintAddress() {
+    Point* a;
+    Point* b;
+    {
+        print("=== Test 9: Print Pointer Address ===");
+        a = new Point();
+        b = new Point();
+        print(a);       // Should print #1
+        print(b);       // Should print #2
+        b = a;
+        print(b);       // Should print #1 (same object as a)
+    }
+}
+
 void main() {
     test1BasicAllocation();
     test2MultiplePointers();
@@ -156,5 +171,6 @@ void main() {
     test6Arithmetic();
     test7Conditionals();
     test8Loops();
+    test9PrintAddress();
     print("=== All Tests Completed ===");
 }
